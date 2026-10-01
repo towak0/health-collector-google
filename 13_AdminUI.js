@@ -62,6 +62,10 @@ function adminSummary() {
 
   return {
     studyName:  studyName_(),
+    // 画面内のリンクは相対パス（?setup=1）にしてはいけない。
+    // Apps Script はユーザのHTMLをサンドボックス iframe で描画するため、
+    // 相対URLが iframe 側（googleusercontent.com）を基準に解決されて飛び先を失う。
+    selfUrl:    (function () { try { return ScriptApp.getService().getUrl(); } catch (e) { return ''; } })(),
     total:      subjects.length,
     authorized: byStatus['authorized'] || 0,
     issued:     byStatus['issued'] || 0,

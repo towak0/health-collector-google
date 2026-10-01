@@ -72,7 +72,7 @@
       <h1 id="title">読み込み中…</h1>
       <p class="sub" id="whoami">読み込み中…</p>
     </div>
-    <a class="btn2" href="?setup=1">初期設定へ</a>
+    <a class="btn2" id="setupLink" href="#" style="display:none">初期設定へ</a>
   </div>
 
   <div class="signal" id="signal" style="display:none">
@@ -248,6 +248,11 @@ google.script.run
     $('stats').innerHTML =
       stat(s.authorized, '連携済み') + stat(s.issued, '未連携') +
       stat(s.withdrawn, '撤回') + stat(s.total, '被験者 合計');
+    if (s.selfUrl) {
+      var sl = $('setupLink');
+      sl.href = s.selfUrl + '?setup=1';
+      sl.style.display = 'inline-block';
+    }
     $('links').innerHTML =
       '<a href="' + s.dataUrl  + '" target="_blank">データのシート</a>' +
       '<a href="' + s.opsUrl   + '" target="_blank">運用のシート</a>' +
