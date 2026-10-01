@@ -1,12 +1,13 @@
 /**
- * 17_Report.gs — 進捗報告（研究責任者・上長向け）
+ * 17_Report.gs — 進捗ページ（研究責任者・上長向け）
  *
- * 日次ダイジェスト（10_Alerts）とは読む人も目的も違う。
- *   日次ダイジェスト … 運用担当者向け。「今日やること」。毎朝届く。
- *   この進捗報告     … 上長向け。「順調か、いつ解析に入れるか」。週1回。
+ * 管理画面（13_AdminUI）とは読む人も目的も違う。
+ *   管理画面   … 運用担当者向け。操作ができる。毎日見る。
+ *   このページ … 上長向け。読むだけ。ときどき開く。URL をブックマークして使う。
  *
- * 宛先は Script Properties の REPORT_EMAIL。未設定なら ALERT_EMAIL に送る。
- * 日次の細かい通知を上長に流さないよう、別プロパティにしている。
+ * 権限は別枠。Script Properties の REPORT_EMAILS に登録したアカウントが開ける。
+ * ADMIN_EMAILS に入っている人も開ける（管理者は上位権限とみなす）。
+ * 読むだけなので、取り直しや撤回といった操作の入口は一切置いていない。
  *
  * 中心に置いているのは「解析に使える被験者-日」。
  * 行数は指標にならない。1種類しか入っていない日は行としては存在するが、
@@ -15,134 +16,148 @@
 
 var REPORT_CORE = ['steps', 'resting_hr', 'sleep_total_min'];
 
-function sendProgressReport() { Report.send(7); }
-
-var Report = {
-
-  /** 直近 windowDays 日を「最近」として集計し、全期間の累計と併せて1通にする。 */
-  send: function (windowDays) {
-    windowDays = windowDays || 7;
-    var to = prop_('REPORT_EMAIL', false) || prop_('ALERT_EMAIL');
-    if (!to) { slog_('WARNING', 'report_no_recipient', {}); return; }
-
-    var m = Report.collect(windowDays);
-    var L = [];
-
-    L.push(m.studyName + ' 進捗報告  ' + isoDate_(new Date()));
-    L.push('');
-    L.push('【結論】');
-    L.push('  ' + m.headline);
-    L.push('');
-
-    L.push('【蓄積】');
-    L.push('  解析に使える被験者-日   ' + m.usableDays.toLocaleString() + ' 日分');
-    L.push('    （活動量・心拍・睡眠が3つとも揃った日の、被験者ごとの合計）');
-    L.push('  収集期間               ' + (m.firstDate || '—') + ' 〜 ' + (m.lastDate || '—'));
-    L.push('  記録のある被験者        ' + m.subjectsWithData + ' 名');
-    L.push('');
-
-    L.push('【被験者】');
-    L.push('  連携済み               ' + m.authorized + ' 名');
-    L.push('  未連携                 ' + m.issued + ' 名');
-    L.push('  撤回                   ' + m.withdrawn + ' 名');
-    L.push('  合計                   ' + m.total + ' 名');
-    L.push('');
-
-    L.push('【直近' + windowDays + '日の取得率】');
-    L.push('  ' + m.recentRate + '%  （連携済み ' + m.authorized + ' 名 × ' + windowDays +
-           ' 日 のうち、3つとも揃った ' + m.recentUsable + ' 日分）');
-    L.push('  この数字が下がっているときは、装着の中断か端末の同期停止が起きている。');
-    L.push('');
-
-    if (m.attention.length) {
-      L.push('【対応が要るもの】');
-      m.attention.forEach(function (a) { L.push('  ・' + a); });
-      L.push('');
-    } else {
-      L.push('【対応が要るもの】');
-      L.push('  なし');
-      L.push('');
-    }
-
-    L.push('---');
-    L.push('この報告は毎週自動で送信しています。');
-    L.push('内訳や個別の状況は管理画面で確認できます。');
-
-    MailApp.sendEmail({
-      to: to,
-      subject: '[' + m.studyName + '] 進捗報告 ' + isoDate_(new Date()) +
-               (m.attention.length ? '（要対応 ' + m.attention.length + ' 件）' : ''),
-      body: L.join('\n')
-    });
-    slog_('INFO', 'report_sent', { usableDays: m.usableDays, rate: m.recentRate });
-  },
-
-  /** 数字をまとめて作る。画面やテストから使えるよう送信と分けてある。 */
-  collect: function (windowDays) {
-    var subjects = Subjects.all();
-    var byStatus = {};
-    subjects.forEach(function (s) { byStatus[s.status] = (byStatus[s.status] || 0) + 1; });
-    var authorized = byStatus['authorized'] || 0;
-
-    var recentFrom = Utilities.formatDate(
-      new Date(new Date().setHours(0, 0, 0, 0) - windowDays * 864e5), TZ, 'yyyy-MM-dd');
-
-    var usable = 0, recentUsable = 0, first = '', last = '';
-    var seen = {};
-
-    readSheetObjects_(dataSheet_(DATA_SHEETS.daily_summary)).forEach(function (r) {
-      var d = cellToIsoDate_(r.civil_date);
-      if (!d) return;
-      if (!first || d < first) first = d;
-      if (d > last) last = d;
-      seen[String(r.humanome_id)] = true;
-
-      var n = 0;
-      REPORT_CORE.forEach(function (k) {
-        var v = r[k];
-        if (v !== '' && v !== null && v !== undefined && isFinite(Number(v))) n++;
-      });
-      if (n === REPORT_CORE.length) {
-        usable++;
-        if (d >= recentFrom) recentUsable++;
-      }
-    });
-
-    var denom = authorized * windowDays;
-    var rate  = denom ? Math.round(recentUsable / denom * 1000) / 10 : 0;
-
-    var attention = [];
-    var pending = subjects.filter(function (s) { return s.status === 'issued'; }).length;
-    var revoked = subjects.filter(function (s) { return s.status === 'revoked'; }).length;
-    var stale   = subjects.filter(function (s) {
-      return s.status === 'authorized' && (Number(s.consecutive_empty_days) || 0) >= 3;
-    }).length;
-    if (pending) attention.push('未連携が ' + pending + ' 名。リマインドが要る。');
-    if (revoked) attention.push('連携が切れているのが ' + revoked + ' 名。URL の再発行が要る。');
-    if (stale)   attention.push('3日以上データが入っていないのが ' + stale + ' 名。端末の同期か装着の確認が要る。');
-
-    var headline;
-    if (!authorized)        headline = 'まだ誰も連携していない。配布と連携の呼びかけが次の作業。';
-    else if (!usable)       headline = '連携は始まっているが、まだ解析に使えるデータが溜まっていない。';
-    else if (rate >= 80)    headline = '順調。' + usable.toLocaleString() + ' 日分が蓄積済み、直近の取得率も ' + rate + '%。';
-    else if (rate >= 50)    headline = '収集は動いているが取得率が ' + rate + '% に留まっている。装着の継続状況を確認したい。';
-    else                    headline = '取得率が ' + rate + '% まで落ちている。原因の切り分けが要る。';
-
-    return {
-      studyName: String(Props.getProperty('STUDY_NAME') || 'HealthStudy'),
-      total: subjects.length, authorized: authorized,
-      issued: byStatus['issued'] || 0, withdrawn: byStatus['withdrawn'] || 0,
-      subjectsWithData: Object.keys(seen).length,
-      usableDays: usable, recentUsable: recentUsable, recentRate: rate,
-      firstDate: first, lastDate: last,
-      attention: attention, headline: headline
-    };
+/** 閲覧者かどうか。違えば例外。 */
+function requireReportViewer_() {
+  var me = '';
+  try { me = String(Session.getActiveUser().getEmail() || '').toLowerCase(); } catch (e) {}
+  var list = function (k) {
+    return String(Props.getProperty(k) || '').split(',')
+      .map(function (x) { return x.trim().toLowerCase(); }).filter(String);
+  };
+  var allow = list('REPORT_EMAILS').concat(list('ADMIN_EMAILS'));
+  if (!me || allow.indexOf(me) < 0) {
+    Audit.log('report_denied', '', me || '(anonymous)');
+    throw new Error('権限がありません');
   }
-};
+  return me;
+}
 
-/** 送信せずに中身だけ確認する（エディタから実行してログで見る）。 */
-function previewProgressReport() {
-  var m = Report.collect(7);
-  Logger.log(JSON.stringify(m, null, 2));
-  return m;
+function renderReportPage_() {
+  try { requireReportViewer_(); }
+  catch (e) {
+    return page_('権限がありません',
+      '<p>このページは研究関係者専用です。</p>' +
+      '<p class="note">担当者の方へ：Script Properties の REPORT_EMAILS に閲覧者の' +
+      'アドレスを登録してください。</p>');
+  }
+  return HtmlService.createTemplateFromFile('ReportUI').evaluate()
+    .setTitle(studyName_() + ' 進捗')
+    .addMetaTag('viewport', 'width=device-width, initial-scale=1')
+    .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
+}
+
+// ---- google.script.run から呼ばれる関数 -----------------------------------
+
+/** 一目で分かる部分。信号（ok / warn / bad）と数字と一文。 */
+function reportSummary() {
+  requireReportViewer_();
+  var windowDays = 7;
+
+  var subjects = Subjects.all();
+  var byStatus = {};
+  subjects.forEach(function (s) { byStatus[s.status] = (byStatus[s.status] || 0) + 1; });
+  var authorized = byStatus['authorized'] || 0;
+
+  var recentFrom = Utilities.formatDate(
+    new Date(new Date().setHours(0, 0, 0, 0) - windowDays * 864e5), TZ, 'yyyy-MM-dd');
+
+  var usable = 0, recentUsable = 0, first = '', last = '', seen = {};
+  readSheetObjects_(dataSheet_(DATA_SHEETS.daily_summary)).forEach(function (r) {
+    var d = cellToIsoDate_(r.civil_date);
+    if (!d) return;
+    if (!first || d < first) first = d;
+    if (d > last) last = d;
+    seen[String(r.humanome_id)] = true;
+    if (coreCount_(r) === REPORT_CORE.length) {
+      usable++;
+      if (d >= recentFrom) recentUsable++;
+    }
+  });
+
+  var denom = authorized * windowDays;
+  var rate  = denom ? Math.round(recentUsable / denom * 1000) / 10 : 0;
+
+  var pending = subjects.filter(function (s) { return s.status === 'issued'; }).length;
+  var revoked = subjects.filter(function (s) { return s.status === 'revoked'; }).length;
+  var stale   = subjects.filter(function (s) {
+    return s.status === 'authorized' && (Number(s.consecutive_empty_days) || 0) >= 3;
+  }).length;
+
+  var attention = [];
+  if (revoked) attention.push({ level: 'bad',  text: '連携が切れている被験者が ' + revoked + ' 名。URL の再発行が要ります。' });
+  if (stale)   attention.push({ level: 'warn', text: '3日以上データが入っていない被験者が ' + stale + ' 名。端末の同期か装着の確認が要ります。' });
+  if (pending) attention.push({ level: 'warn', text: 'まだ連携していない被験者が ' + pending + ' 名。リマインドが要ります。' });
+
+  // 信号は「放っておくと研究が壊れるか」で決める。取得率は下がりはじめが分かれば十分。
+  var level, headline;
+  if (!authorized)        { level = 'warn'; headline = 'まだ誰も連携していません。配布と連携の呼びかけが次の作業です。'; }
+  else if (revoked)       { level = 'bad';  headline = '連携が切れている被験者がいます。対応しないとその人のデータは増えません。'; }
+  else if (rate < 50)     { level = 'bad';  headline = '直近の取得率が ' + rate + '% まで落ちています。原因の切り分けが要ります。'; }
+  else if (rate < 80 || pending || stale)
+                          { level = 'warn'; headline = '収集は動いていますが、対応が要るものがあります。'; }
+  else                    { level = 'ok';   headline = '順調です。対応が要るものはありません。'; }
+
+  return {
+    studyName: studyName_(),
+    level: level, headline: headline, attention: attention,
+    usableDays: usable, recentRate: rate,
+    authorized: authorized, issued: byStatus['issued'] || 0,
+    withdrawn: byStatus['withdrawn'] || 0, total: subjects.length,
+    subjectsWithData: Object.keys(seen).length,
+    firstDate: first || '—', lastDate: last || '—',
+    updatedAt: Utilities.formatDate(new Date(), TZ, 'yyyy-MM-dd HH:mm')
+  };
+}
+
+function coreCount_(r) {
+  var n = 0;
+  REPORT_CORE.forEach(function (k) {
+    var v = r[k];
+    if (v !== '' && v !== null && v !== undefined && isFinite(Number(v))) n++;
+  });
+  return n;
+}
+
+/**
+ * 推移2本。
+ *   rate       … その日に3種そろった被験者の割合（連携済み人数が分母）
+ *   cumulative … 解析に使える被験者-日の累計
+ * 分母は現在の連携済み人数で固定している。過去にさかのぼって人数を復元できないため、
+ * 連携者が増えた直後は過去の率が低めに出る。傾きを見るための線と考える。
+ */
+function reportTrend(days) {
+  requireReportViewer_();
+  days = Math.min(Math.max(parseInt(days, 10) || 30, 7), 90);
+
+  var axis = lastDays_(days), idx = {};
+  axis.forEach(function (d, i) { idx[d] = i; });
+
+  var authorized = Subjects.all().filter(function (s) { return s.status === 'authorized'; }).length;
+  var perDay = axis.map(function () { return 0; });
+  var before = 0;   // 期間より前の分（累計の起点）
+
+  readSheetObjects_(dataSheet_(DATA_SHEETS.daily_summary)).forEach(function (r) {
+    if (coreCount_(r) !== REPORT_CORE.length) return;
+    var d = cellToIsoDate_(r.civil_date);
+    if (!d) return;
+    var i = idx[d];
+    if (i === undefined) { if (d < axis[0]) before++; return; }
+    perDay[i]++;
+  });
+
+  var cum = [], run = before;
+  perDay.forEach(function (n) { run += n; cum.push(run); });
+
+  return {
+    axis: axis,
+    authorized: authorized,
+    rate: perDay.map(function (n) { return authorized ? Math.round(n / authorized * 1000) / 10 : null; }),
+    cumulative: cum
+  };
+}
+
+/** カバレッジ格子。管理画面と同じ中身を閲覧権限で返す。 */
+function reportCoverage(days) {
+  requireReportViewer_();
+  return coverageData_(days);
 }

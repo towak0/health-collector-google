@@ -37,7 +37,8 @@ function renderAdminPage_() {
       '登録し、アクセスを限定したデプロイからこの URL を開いてください。</p>');
   }
 
-  return HtmlService.createHtmlOutputFromFile('AdminUI')
+  // Viz.html を取り込むためテンプレートとして評価する
+  return HtmlService.createTemplateFromFile('AdminUI').evaluate()
     .setTitle(studyName_() + ' 管理')
     .addMetaTag('viewport', 'width=device-width, initial-scale=1')
     .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
@@ -216,6 +217,11 @@ function adminSeries(humanomeId, days) {
  */
 function adminCoverage(days) {
   requireAdmin_();
+  return coverageData_(days);
+}
+
+/** 実体。進捗ページ（17_Report）からも使うので権限チェックと分けてある。 */
+function coverageData_(days) {
   days = Math.min(Math.max(parseInt(days, 10) || 30, 7), 90);
 
   var axis = lastDays_(days);

@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<base target="_top">
+<meta charset="utf-8">
+<style>
+  *{box-sizing:border-box}
+  body{font-family:system-ui,-apple-system,"Hiragino Sans","Noto Sans JP",sans-serif;
+       margin:0;padding:24px 16px 64px;background:#f6f8fa;color:#202124;line-height:1.7}
+  .wrap{max-width:860px;margin:0 auto}
+  h1{font-size:1.25rem;margin:0 0 4px}
+  .sub{color:#5f6368;font-size:.85rem;margin:0}
+  .card{background:#fff;border:1px solid #e0e3e7;border-radius:10px;padding:18px;margin-bottom:16px}
+  .card h2{font-size:.95rem;margin:0 0 14px;color:#3c4043}
+
+  /* 信号。色だけに頼らず、記号と文字を必ず添える。 */
+  .signal{display:flex;gap:14px;align-items:flex-start;border-radius:10px;padding:18px;
+          margin-bottom:16px;border:1px solid}
+  .signal .mark{font-size:1.4rem;line-height:1.2;font-weight:700}
+  .signal .state{font-weight:700;font-size:.95rem;margin:0 0 2px}
+  .signal .msg{margin:0;font-size:.9rem}
+  .signal.ok  {background:#e6f4ea;border-color:#b7e1c3;color:#11602b}
+  .signal.warn{background:#fef7e0;border-color:#f3dba0;color:#7a4b00}
+  .signal.bad {background:#fce8e6;border-color:#f3b6b1;color:#9c1b17}
+
+  .hero{display:flex;flex-wrap:wrap;gap:24px;align-items:flex-end}
+  .hero .big{font-size:2.6rem;font-weight:700;line-height:1;letter-spacing:-.02em}
+  .hero .unit{font-size:1rem;font-weight:600;color:#5f6368;margin-left:6px}
+  .hero .cap{font-size:.78rem;color:#5f6368;margin-top:6px;max-width:420px}
+  .kpis{display:flex;flex-wrap:wrap;gap:10px;margin-top:18px}
+  .kpi{flex:1 1 130px;background:#f8f9fa;border-radius:8px;padding:12px 14px}
+  .kpi .n{font-size:1.35rem;font-weight:700;line-height:1.2}
+  .kpi .l{font-size:.74rem;color:#5f6368}
+
+  ul.todo{margin:0;padding-left:0;list-style:none}
+  ul.todo li{display:flex;gap:9px;padding:8px 0;border-bottom:1px solid #f1f3f4;font-size:.88rem}
+  ul.todo li:last-child{border-bottom:0}
+  ul.todo .m{font-weight:700}
+  ul.todo .bad .m{color:#c5221f}
+  ul.todo .warn .m{color:#b06000}
+  .foot{color:#80868b;font-size:.78rem;text-align:center;margin-top:22px}
+</style>
+<?!= HtmlService.createHtmlOutputFromFile('Viz').getContent() ?>
+</head>
+<body>
+<div class="wrap">
+
+  <div style="margin-bottom:18px">
+    <h1 id="title">読み込み中…</h1>
+    <p class="sub" id="meta"></p>
+  </div>
+
+  <div class="signal" id="signal" style="display:none">
+    <div class="mark" id="sigMark"></div>
+    <div>
+      <p class="state" id="sigState"></p>
+      <p class="msg" id="sigMsg"></p>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>蓄積</h2>
+    <div class="hero">
+      <div>
+        <div><span class="big" id="usable">—</span><span class="unit">被験者-日</span></div>
+        <p class="cap">活動量・心拍・睡眠が3つとも揃った日の合計。
+          1種類しか入らなかった日は数えていません（突き合わせる分析に使えないため）。</p>
+      </div>
+    </div>
+    <div class="kpis" id="kpis"></div>
+  </div>
+
+  <div class="card vizscope">
+    <div class="chartHead"><span class="t">取得率の推移</span>
+      <span class="v" id="rateMeta"></span></div>
+    <div class="viz" id="rateChart"></div>
+    <p class="viznote">その日に3種そろった被験者の割合。分母は現在の連携済み人数で固定しているため、
+      連携者が増えた直後は過去の率が低めに出ます。傾きを見てください。</p>
+
+    <div class="chartHead" style="margin-top:24px"><span class="t">累計</span>
+      <span class="v" id="cumMeta"></span></div>
+    <div class="viz" id="cumChart"></div>
+    <p class="viznote">解析に使える被験者-日の積み上がり。傾きが寝てきたら収集が止まっています。</p>
+
+    <div class="chartHead" style="margin-top:28px"><span class="t">収集カバレッジ</span>
+      <span class="v" id="covMeta"></span></div>
+    <div class="viz fixed" id="cov"></div>
+    <div class="legend">
+      <span><i style="background:var(--c0)"></i>記録なし</span>
+      <span><i style="background:var(--c1)"></i>1種</span>
+      <span><i style="background:var(--c2)"></i>2種</span>
+      <span><i style="background:var(--c3)"></i>3種そろい</span>
+    </div>
+    <p class="viznote">被験者ごと・日ごとの状況。直近7日の記録が少ない人を上に並べています。</p>
+  </div>
+
+  <div class="card">
+    <h2>対応が要るもの</h2>
+    <ul class="todo" id="todo"><li>読み込み中…</li></ul>
+  </div>
+
+  <p class="foot" id="foot"></p>
+</div>
+
+<script>
+function $(id) { return document.getElementById(id); }
+function esc(s) {
+  return String(s).replace(/[&<>"]/g, function (c) {
+    return { '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[c];
+  });
+}
+
+var STATE = { ok: ['●', '問題なし'], warn: ['▲', '要確認'], bad: ['■', '要対応'] };
+var DAYS = 30;
+
+google.script.run
+  .withSuccessHandler(function (s) {
+    document.title = s.studyName + ' 進捗';
+    $('title').textContent = s.studyName + ' 進捗';
+    $('meta').textContent = '収集期間 ' + s.firstDate + ' 〜 ' + s.lastDate +
+                            ' ／ 記録のある被験者 ' + s.subjectsWithData + ' 名';
+
+    var st = STATE[s.level] || STATE.warn;
+    $('signal').className = 'signal ' + s.level;
+    $('signal').style.display = 'flex';
+    $('sigMark').textContent  = st[0];
+    $('sigState').textContent = st[1];
+    $('sigMsg').textContent   = s.headline;
+
+    $('usable').textContent = s.usableDays.toLocaleString();
+    $('kpis').innerHTML =
+      kpi(s.recentRate + '%', '直近7日の取得率') +
+      kpi(s.authorized, '連携済み') +
+      kpi(s.issued, '未連携') +
+      kpi(s.withdrawn, '撤回') +
+      kpi(s.total, '被験者 合計');
+
+    $('todo').innerHTML = s.attention.length
+      ? s.attention.map(function (a) {
+          return '<li class="' + a.level + '"><span class="m">' +
+                 (a.level === 'bad' ? '■' : '▲') + '</span><span>' + esc(a.text) + '</span></li>';
+        }).join('')
+      : '<li><span class="m">●</span><span>ありません。</span></li>';
+
+    $('foot').textContent = '最終更新 ' + s.updatedAt + '（10分ごとに自動で読み直します）';
+  })
+  .withFailureHandler(function (e) { $('meta').textContent = '読み込みに失敗しました: ' + e.message; })
+  .reportSummary();
+
+function kpi(n, l) {
+  return '<div class="kpi"><div class="n">' + n + '</div><div class="l">' + l + '</div></div>';
+}
+
+google.script.run
+  .withSuccessHandler(function (d) {
+    $('rateMeta').textContent = '直近 ' + d.axis.length + ' 日';
+    $('cumMeta').textContent  = '直近 ' + d.axis.length + ' 日';
+    drawLine($('rateChart'), { key: 'rate', label: '', unit: '%',
+                               values: d.rate }, d.axis, { bare: true });
+    drawLine($('cumChart'),  { key: 'cum', label: '', unit: '被験者-日',
+                               values: d.cumulative }, d.axis, { bare: true });
+  })
+  .withFailureHandler(function (e) { $('rateChart').textContent = e.message; })
+  .reportTrend(DAYS);
+
+google.script.run
+  .withSuccessHandler(function (d) {
+    $('covMeta').textContent = d.ids.length + ' 名 ・ ' + d.axis.length + ' 日';
+    drawCoverage($('cov'), d);
+  })
+  .withFailureHandler(function (e) { $('cov').textContent = e.message; })
+  .reportCoverage(DAYS);
+
+// 開きっぱなしでも古い数字を見ないように読み直す
+setTimeout(function () { location.reload(); }, 10 * 60 * 1000);
+</script>
+</body>
+</html>
