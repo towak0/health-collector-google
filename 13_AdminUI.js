@@ -261,3 +261,55 @@ function coverageData_(days) {
     maxPerDay: 3
   };
 }
+
+// ---- 被験者ごとの操作 -------------------------------------------------------
+//
+// 以前はエディタからしか実行できなかった。日常運用で確実に必要になるものなので
+// 画面に出す。撤回だけは取り返しがつかないので、画面側で確認を取ってから呼ぶ。
+
+/** 被験者の一覧（操作のプルダウン用）。状態も併せて返す。 */
+function adminSubjectList() {
+  requireAdmin_();
+  return Subjects.all().map(function (s) {
+    return {
+      id:     s.humanome_id,
+      status: String(s.status || ''),
+      flag:   String(s.review_flag || ''),
+      empty:  Number(s.consecutive_empty_days) || 0
+    };
+  }).sort(function (a, b) { return a.id.localeCompare(b.id); });
+}
+
+/** 連携が切れた被験者に新しい URL を発行する。 */
+function adminReissue(humanomeId) {
+  requireAdmin_();
+  var url = reissueLink(String(humanomeId || '').trim());
+  return '新しい URL を発行しました。本人に送ってください。\n' + url;
+}
+
+/** 同意撤回。取り返しがつかないので、画面側で確認を取ってから呼ぶこと。 */
+function adminWithdraw(humanomeId) {
+  requireAdmin_();
+  return withdrawSubject(String(humanomeId || '').trim());
+}
+
+/** 要確認フラグを消す。人が見て問題なしと判断したとき。 */
+function adminClearFlag(humanomeId) {
+  requireAdmin_();
+  clearReviewFlag(String(humanomeId || '').trim());
+  return '要確認フラグを消しました。';
+}
+
+/** 直近ジョブの失敗ぶんだけ取り直す。 */
+function adminRetryFailed() {
+  requireAdmin_();
+  return retryFailed();
+}
+
+/** 配布用 CSV を書き出す。 */
+function adminExportCsv() {
+  requireAdmin_();
+  var cfgRow = readSheetObjects_(opsSheet_(OPS_SHEETS.config))[0];
+  if (!cfgRow) throw new Error('config シートに行がありません');
+  return exportSubjectsCsv(cfgRow.config_name);
+}

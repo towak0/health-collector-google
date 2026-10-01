@@ -143,6 +143,40 @@
   </div>
 
   <div class="card">
+    <h2>被験者の操作</h2>
+    <div class="row">
+      <div class="f"><label>被験者</label>
+        <select id="opHid"><option value="">選んでください</option></select>
+      </div>
+      <button class="sec" id="btnReissue">URL を再発行</button>
+      <button class="sec" id="btnFlag">要確認を解除</button>
+      <button class="sec" id="btnWithdraw" style="color:#c5221f;border-color:#f3b6b1">同意撤回</button>
+    </div>
+    <div class="out" id="opOut"></div>
+    <p class="sub" style="margin:10px 0 0">
+      <b>URL を再発行</b>…連携が切れた人に新しいリンクを出します。再連携できるのは同じ Google
+      アカウントだけなので、取り違えは起きません。<br>
+      <b>要確認を解除</b>…人が見て問題なしと判断したときに、印を消します。<br>
+      <b>同意撤回</b>…収集を止め、Google 側の認可も取り消します。<b>元に戻せません。</b>
+      すでに集めたデータの削除は、研究計画に従って別途対応してください。
+    </p>
+  </div>
+
+  <div class="card">
+    <h2>そのほか</h2>
+    <div class="row">
+      <button class="sec" id="btnRetry">失敗ぶんを取り直す</button>
+      <button class="sec" id="btnCsv">配布用 CSV を書き出す</button>
+    </div>
+    <div class="out" id="miscOut"></div>
+    <p class="sub" style="margin:10px 0 0">
+      <b>失敗ぶんを取り直す</b>…前回のジョブで失敗したリクエストだけを再実行します。
+      翌朝の定期実行でも自動で拾うので、急ぎでなければ押さなくて構いません。<br>
+      <b>配布用 CSV</b>…被験者ID と個別URL の一覧をドライブの exports フォルダに出します。
+    </p>
+  </div>
+
+  <div class="card">
     <h2>状態の診断</h2>
     <p class="sub" style="margin:-8px 0 12px">
       直近3日のデータと端末の同期状況から、欠測の理由を切り分けます。
@@ -267,6 +301,53 @@ $('go').onclick = function () {
     .withFailureHandler(function (e) { b.disabled = false; show($('fetchOut'), 'ng', e.message); })
     .adminFetch($('from').value, $('to').value, $('hid').value);
 };
+
+// ---- 被験者の操作 ---------------------------------------------------------
+function runOp(btn, outId, fn, args, confirmMsg) {
+  var hid = $('opHid') ? $('opHid').value : '';
+  if (fn !== 'adminRetryFailed' && fn !== 'adminExportCsv' && !hid) {
+    show($(outId), 'ng', '被験者を選んでください。'); return;
+  }
+  if (confirmMsg && !window.confirm(confirmMsg)) return;
+  btn.disabled = true;
+  show($(outId), 'busy', '実行中…');
+  var r = google.script.run
+    .withSuccessHandler(function (m) { btn.disabled = false; show($(outId), 'ok', m); loadSubjects(); })
+    .withFailureHandler(function (e) { btn.disabled = false; show($(outId), 'ng', e.message); });
+  r[fn].apply(r, args);
+}
+
+function loadSubjects() {
+  google.script.run
+    .withSuccessHandler(function (list) {
+      var sel = $('opHid'), cur = sel.value;
+      sel.innerHTML = '<option value="">選んでください</option>';
+      list.forEach(function (s) {
+        var note = [];
+        if (s.status !== 'authorized') note.push(s.status);
+        if (s.flag) note.push('要確認');
+        if (s.empty >= 3) note.push(s.empty + '日0件');
+        var o = document.createElement('option');
+        o.value = s.id;
+        o.textContent = s.id + (note.length ? '  （' + note.join(' / ') + '）' : '');
+        sel.appendChild(o);
+      });
+      sel.value = cur;
+    })
+    .withFailureHandler(function () {})
+    .adminSubjectList();
+}
+loadSubjects();
+
+$('btnReissue').onclick  = function () { runOp(this, 'opOut', 'adminReissue', [$('opHid').value]); };
+$('btnFlag').onclick     = function () { runOp(this, 'opOut', 'adminClearFlag', [$('opHid').value]); };
+$('btnWithdraw').onclick = function () {
+  runOp(this, 'opOut', 'adminWithdraw', [$('opHid').value],
+        $('opHid').value + ' の同意を撤回します。\n収集が止まり、元に戻せません。よろしいですか。');
+};
+$('btnRetry').onclick = function () { runOp(this, 'miscOut', 'adminRetryFailed', []); };
+$('btnCsv').onclick   = function () { runOp(this, 'miscOut', 'adminExportCsv', []); };
+
 
 // 状態の診断
 $('btnDiag').onclick = function () {
