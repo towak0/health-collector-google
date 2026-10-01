@@ -16,22 +16,56 @@ health-collector/
 ├── .clasp.json.example        → .clasp.json にコピーして scriptId を入れる（git 非追跡）
 ├── .gitignore
 ├── src/
-│   ├── 00_Const.gs            定数・スコープ・FILTER_TEMPLATES・列定義
-│   ├── 01_Config.gs           Script Properties + config / datatypes シート
-│   ├── 02_WebApp.gs           doGet ルーター / 同意ページ / コールバック
-│   ├── 03_OAuth.gs            認可URL・PKCE・state・code交換・refresh・revoke
-│   ├── 04_TokenStore.gs       Properties(refresh) + Cache(access)
-│   ├── 05_Subjects.gs         被験者マスタ CRUD・本人性検証（5層）
-│   ├── 06_HealthApi.gs        API クライアント（組立・ページング・リトライ）
-│   ├── 07_Ingest.gs           日次ジョブ・バックフィル・週次デバイス・カーソル
-│   ├── 08_SinkSheet.gs        シート upsert・Audit・IngestLog
-│   ├── 09_SinkDrive.gs        Drive NDJSON.gz
-│   ├── 10_Alerts.gs           日次ダイジェスト・カナリア監視
-│   ├── 11_Admin.gs            セットアップ・URL発行・CSV・撤回・手動リカバリ
-│   └── 12_Util.gs             日付・乱数・ハッシュ・マスク・例外型
+│   ├── 00_Const.js            定数・スコープ・FILTER_TEMPLATES・列定義
+│   ├── 01_Config.js           Script Properties + config / datatypes シート
+│   ├── 02_WebApp.js           doGet ルーター / 同意ページ / コールバック / ?setup= ?admin=
+│   ├── 03_OAuth.js            認可URL・PKCE・state・code交換・refresh・revoke
+│   ├── 04_TokenStore.js       Properties(refresh) + Cache(access)
+│   ├── 05_Subjects.js         被験者マスタ CRUD・本人性検証（5層）
+│   ├── 06_HealthApi.js        API クライアント（組立・ページング・リトライ）
+│   ├── 07_Ingest.js           日次ジョブ・週次キャッチアップ・バックフィル・カーソル
+│   ├── 08_SinkSheet.js        シート upsert・Audit・IngestLog・行数自動拡張
+│   ├── 09_SinkDrive.js        Drive NDJSON.gz
+│   ├── 10_Alerts.js           日次ダイジェスト・カナリア監視
+│   ├── 11_Admin.js            セットアップ・URL発行・CSV・撤回・手動リカバリ・各種調査関数
+│   └── 12_Util.js             日付・乱数・ハッシュ・マスク・例外型
+├── 13_AdminUI.js / AdminUI.html    管理画面（?admin=1）
+├── 14_SetupUI.js / SetupUI.html    初期設定画面（?setup=1）
+├── 15_Handover.js             引き継ぎ資料の自動生成（Google ドキュメント出力）
+├── 16_Diagnose.js             データ欠損の自動診断
 └── test/
-    └── 90_SelfTest.gs         API を叩かないドライラン
+    └── 90_SelfTest.js         API を叩かないドライラン
 ```
+
+> Apps Script 側のファイル名がそのまま落ちてくるため、`src/` 配下のものと
+> ルート直下のもの（13〜16・HTML）が混在している。揃えるには Apps Script 側の
+> ファイル名を変える（= `clasp push`）必要があるので、当面はこのまま。
+
+### ブラウザから使う画面
+
+| URL | 用途 |
+|---|---|
+| `{WEBAPP_URL}?setup=1` | 初期設定。7ステップで立ち上げが完結する |
+| `{WEBAPP_URL}?admin=1` | 日常運用。状況表示・期間指定の再取得・直近データとログの確認 |
+
+どちらも `ADMIN_EMAILS` に登録したアカウントだけが開ける。被験者向けの匿名デプロイからは入れない。
+
+---
+
+## 開発の流れ（clasp + git）
+
+このリポジトリと Apps Script は clasp で行き来する。
+
+```bash
+clasp pull     # Apps Script → 手元（エディタで直接編集したものを取り込む）
+clasp push     # 手元 → Apps Script
+```
+
+**Apps Script のエディタで直接編集した場合は、必ず `clasp pull` してからコミットする。**
+しないと手元の内容で上書きされ、エディタ側の変更が消える。
+
+`.clasp.json` は scriptId を含むため追跡していない。クローン後は
+`.clasp.json.example` をコピーして scriptId を書き込む。
 
 ---
 
