@@ -134,3 +134,124 @@ function adminLog(limit) {
     };
   });
 }
+
+// ---- グラフ用のデータ -------------------------------------------------------
+//
+// 方針：
+//  - 画面側で重い計算をしない。ここで日付軸に揃えた配列まで作って返す。
+//  - 被験者を指定しなければコホートの中央値を返す。平均だと1人の外れ値で形が変わる。
+//  - 単位の違う指標を1つのグラフに重ねない。指標ごとに別の系列として返し、
+//    画面側でも別々のグラフに描く。
+
+/** 末尾が昨日になる N 日分の ISO 日付。 */
+function lastDays_(days) {
+  var out = [], base = new Date();
+  base.setHours(0, 0, 0, 0);
+  for (var i = days; i >= 1; i--) {
+    out.push(Utilities.formatDate(new Date(base.getTime() - i * 864e5), TZ, 'yyyy-MM-dd'));
+  }
+  return out;
+}
+
+function median_(xs) {
+  var a = xs.filter(function (v) { return typeof v === 'number' && isFinite(v); }).sort(function (x, y) { return x - y; });
+  if (!a.length) return null;
+  var m = a.length >> 1;
+  return a.length % 2 ? a[m] : (a[m - 1] + a[m]) / 2;
+}
+
+function num_(v) {
+  if (v === '' || v === null || v === undefined) return null;
+  var n = Number(v);
+  return isFinite(n) ? n : null;
+}
+
+/**
+ * 推移グラフ用。humanomeId を省くとコホートの中央値。
+ * 返すのは日付軸と、指標ごとの同じ長さの配列（欠測は null）。
+ */
+function adminSeries(humanomeId, days) {
+  requireAdmin_();
+  days = Math.min(Math.max(parseInt(days, 10) || 30, 7), 90);
+
+  var METRICS = [
+    { key: 'steps',           label: '歩数',       unit: '歩'  },
+    { key: 'sleep_total_min', label: '睡眠',       unit: '分'  },
+    { key: 'resting_hr',      label: '安静時心拍', unit: 'bpm' }
+  ];
+
+  var hid  = String(humanomeId || '').trim();
+  var axis = lastDays_(days);
+  var idx  = {};
+  axis.forEach(function (d, i) { idx[d] = i; });
+
+  // 日付 → 指標 → その日の値（被験者ごと）
+  var bucket = axis.map(function () { return { steps: [], sleep_total_min: [], resting_hr: [] }; });
+
+  readSheetObjects_(dataSheet_(DATA_SHEETS.daily_summary)).forEach(function (r) {
+    if (hid && String(r.humanome_id) !== hid) return;
+    var i = idx[cellToIsoDate_(r.civil_date)];
+    if (i === undefined) return;
+    METRICS.forEach(function (m) {
+      var v = num_(r[m.key]);
+      if (v !== null) bucket[i][m.key].push(v);
+    });
+  });
+
+  return {
+    axis: axis,
+    subject: hid || null,
+    series: METRICS.map(function (m) {
+      return {
+        key: m.key, label: m.label, unit: m.unit,
+        values: bucket.map(function (b) { return hid ? (b[m.key].length ? b[m.key][0] : null) : median_(b[m.key]); })
+      };
+    })
+  };
+}
+
+/**
+ * 収集カバレッジ。被験者 × 日 の格子で、その日に揃った指標の数（0〜3）を返す。
+ * 「誰がいつ落ちたか」を見るためのもので、値そのものは見ない。
+ */
+function adminCoverage(days) {
+  requireAdmin_();
+  days = Math.min(Math.max(parseInt(days, 10) || 30, 7), 90);
+
+  var axis = lastDays_(days);
+  var idx  = {};
+  axis.forEach(function (d, i) { idx[d] = i; });
+
+  var ids = Subjects.all()
+    .filter(function (s) { return s.status === 'authorized'; })
+    .map(function (s) { return s.humanome_id; })
+    .sort();
+  var pos = {};
+  ids.forEach(function (id, i) { pos[id] = i; });
+
+  var grid = ids.map(function () { return axis.map(function () { return 0; }); });
+
+  readSheetObjects_(dataSheet_(DATA_SHEETS.daily_summary)).forEach(function (r) {
+    var i = pos[String(r.humanome_id)];
+    var j = idx[cellToIsoDate_(r.civil_date)];
+    if (i === undefined || j === undefined) return;
+    var n = 0;
+    if (num_(r.steps)           !== null) n++;
+    if (num_(r.resting_hr)      !== null) n++;
+    if (num_(r.sleep_total_min) !== null) n++;
+    grid[i][j] = n;
+  });
+
+  // 直近7日が全部 0 の被験者を上に出す。対応が要るのはそこなので。
+  var order = ids.map(function (id, i) {
+    var tail = grid[i].slice(-7).reduce(function (a, b) { return a + b; }, 0);
+    return { id: id, row: grid[i], tail: tail };
+  }).sort(function (a, b) { return a.tail - b.tail || a.id.localeCompare(b.id); });
+
+  return {
+    axis:  axis,
+    ids:   order.map(function (o) { return o.id; }),
+    grid:  order.map(function (o) { return o.row; }),
+    maxPerDay: 3
+  };
+}
