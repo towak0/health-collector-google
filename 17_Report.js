@@ -109,10 +109,15 @@ function reportSummary() {
   if (stale)   attention.push({ level: 'warn', text: '3日以上データが入っていない被験者が ' + stale + ' 名。端末の同期か装着の確認が要ります。' });
   if (pending) attention.push({ level: 'warn', text: 'まだ連携していない被験者が ' + pending + ' 名。リマインドが要ります。' });
 
-  // 信号は「放っておくと研究が壊れるか」で決める。取得率は下がりはじめが分かれば十分。
+  // 信号は「放っておくと研究が壊れるか」で決める。
+  // 配布前・配布途中は取得率で赤を出さない。母数が揃う前の率は意味を持たず、
+  // ここで赤を出すと本番で赤が出たときに信用されなくなる。
+  var distributing = pending > authorized;
   var level, headline;
   if (!authorized)        { level = 'warn'; headline = 'まだ誰も連携していません。配布と連携の呼びかけが次の作業です。'; }
   else if (revoked)       { level = 'bad';  headline = '連携が切れている被験者がいます。対応しないとその人のデータは増えません。'; }
+  else if (distributing)  { level = 'warn'; headline = '配布がまだ途中です（連携 ' + authorized + ' 名 / 未連携 ' + pending +
+                                                       ' 名）。この段階の取得率は参考値です。'; }
   else if (rate < 50)     { level = 'bad';  headline = '直近の取得率が ' + rate + '% まで落ちています。原因の切り分けが要ります。'; }
   else if (rate < 80 || pending || stale)
                           { level = 'warn'; headline = '収集は動いていますが、対応が要るものがあります。'; }

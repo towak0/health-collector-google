@@ -65,9 +65,9 @@ function drawCoverage(box, d) {
   box.innerHTML = '';
   if (!d.ids.length) { box.innerHTML = '<p class="sub">連携済みの被験者がいません。</p>'; return; }
 
-  var LW = 118, GAP = 2, TOP = 16;
+  var LW = 160, GAP = 2, TOP = 16;
   // 日数が少ないときはマスを大きくして、下の折れ線と横幅を揃える
-  var CELL = Math.max(10, Math.min(22, Math.round((740 - LW) / d.axis.length)));
+  var CELL = Math.max(10, Math.min(22, Math.round((780 - LW) / d.axis.length)));
   var W = LW + d.axis.length * CELL, H = TOP + d.ids.length * CELL + 4;
   var svg = svgEl('svg', { viewBox: '0 0 ' + W + ' ' + H, width: W, height: H, role: 'img',
                            'aria-label': '被験者ごと・日ごとの収集状況' });
@@ -84,7 +84,7 @@ function drawCoverage(box, d) {
   d.ids.forEach(function (id, i) {
     var y = TOP + i * CELL;
     var lab = svgEl('text', { x: 0, y: y + CELL - GAP - 2, class: 'ax' });
-    lab.textContent = id.length > 18 ? '…' + id.slice(-17) : id;
+    lab.textContent = id.length > 25 ? '…' + id.slice(-24) : id;
     svg.appendChild(lab);
 
     d.grid[i].forEach(function (n, j) {
@@ -134,7 +134,8 @@ function drawLine(host, sr, axis, opts) {
   if (sr.key === 'steps' && mn < 0) mn = 0;
   // 率は 0〜100 で固定。軸が 102.8 まで伸びると「100%超」があるように見える。
   if (sr.key === 'rate') { mn = 0; mx = 100; }
-  // 累計は 0 始まりにしない。途中から始まる積み上げを 0 から描くと傾きが潰れる。
+  // 累計は 0 始まりにしないが、負にはしない。負の累計は存在しない。
+  if (sr.key === 'cum' && mn < 0) mn = 0;
 
   var X = function (i) { return L + (axis.length === 1 ? iw / 2 : i * iw / (axis.length - 1)); };
   var Y = function (v) { return T + ih - (v - mn) / (mx - mn) * ih; };
