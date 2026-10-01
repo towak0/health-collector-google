@@ -132,6 +132,8 @@ function setProp(key, value) {
 /** 定時トリガーを設置する（§9.1）。既存の同名定時トリガーは張り替える。 */
 function installTriggers() {
   // onManualFetchEdit は廃止。過去に作られたトリガーを消すためだけに名前を残す。
+  // sendDailyDigest は外した。状況は管理画面で見るので、毎朝メールが来る必要がない。
+  // 名前は残してある（過去に作られたトリガーを消すため）。
   var wanted = ['runDailyIngest', 'runCanaryCheck', 'runWeeklyDevices',
                 'sendDailyDigest', 'runWeeklyCatchup', 'onManualFetchEdit'];
   ScriptApp.getProjectTriggers().forEach(function (t) {
@@ -140,7 +142,6 @@ function installTriggers() {
 
   var uids = [];
   uids.push(ScriptApp.newTrigger('runDailyIngest').timeBased().atHour(3).everyDays(1).inTimezone(TZ).create().getUniqueId());
-  uids.push(ScriptApp.newTrigger('sendDailyDigest').timeBased().atHour(8).everyDays(1).inTimezone(TZ).create().getUniqueId());
   uids.push(ScriptApp.newTrigger('runCanaryCheck').timeBased().atHour(9).everyDays(1).inTimezone(TZ).create().getUniqueId());
   uids.push(ScriptApp.newTrigger('runWeeklyDevices').timeBased().atHour(4).everyDays(1).inTimezone(TZ).create().getUniqueId());
   // 週次キャッチアップ：月曜 0時台に直近7日を取り直す（未同期分の回収）
