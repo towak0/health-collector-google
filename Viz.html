@@ -23,10 +23,8 @@
   .legend i{display:inline-block;width:11px;height:11px;border-radius:2px;margin-right:5px;
             vertical-align:-1px}
   .viznote{font-size:.76rem;color:#5f6368;margin:6px 0 0}
-  @media (prefers-color-scheme: dark){
-    :root:not([data-theme="light"]) .vizscope{--surface-1:#1a1a19;--grid:#383835;--ink-2:#c3c2b7;
-      --ink-3:#8f8e87;--line:#3987e5;--c0:#2a2a28;--c1:#184f95;--c2:#2a78d6;--c3:#86b6ef}
-  }
+  /* ページ本体がライト固定なので、グラフだけ OS のダークモードに追従させない。
+     追従させると「記録なし」が黒、「3種そろい」が淡色になり、白い背景の上で逆に見える。 */
 </style>
 
 <script>

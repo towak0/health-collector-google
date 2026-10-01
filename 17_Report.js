@@ -38,12 +38,13 @@ function requireReportViewer_() {
   // 1) 個別に登録されたアドレス
   if (list('REPORT_EMAILS').concat(list('ADMIN_EMAILS')).indexOf(me) >= 0) return me;
 
-  // 2) 社内ドメイン。既定はスクリプト所有者と同じドメイン。
+  // 2) 社内ドメイン。既定は ADMIN_EMAILS の1件目と同じドメイン。
+  //    Session.getEffectiveUser() は使わない。管理画面が使っていない API を
+  //    足すと権限の再承認が必要になり、Web アプリ内では承認画面が出せずに止まる。
   var domains = list('REPORT_DOMAINS');
   if (!domains.length) {
-    var owner = '';
-    try { owner = String(Session.getEffectiveUser().getEmail() || '').toLowerCase(); } catch (e) {}
-    var d = owner.split('@')[1];
+    var first = list('ADMIN_EMAILS')[0] || '';
+    var d = first.split('@')[1];
     if (d && d.indexOf('gmail.com') < 0) domains = [d];   // 個人アカウント運用では効かせない
   }
   if (domains.indexOf(me.split('@')[1]) >= 0) return me;
