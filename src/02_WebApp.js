@@ -14,7 +14,6 @@ function doGet(e) {
   try {
     if (p.setup)           return renderSetupPage_();
     if (p.admin)           return renderAdminPage_();
-    if (p.report)          return renderReportPage_();
     if (p.code || p.error) return handleCallback_(p);
     if (p.link_id)         return renderConsentPage_(p.link_id);
     return page_('無効なURL', '<p>このURLは無効です。配布されたリンクをご確認ください。</p>');

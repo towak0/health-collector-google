@@ -1,18 +1,11 @@
 /**
- * 17_Report.gs — 進捗ページ（研究責任者・上長向け）
+ * 17_Report.gs — 進捗の判定
  *
- * 管理画面（13_AdminUI）とは読む人も目的も違う。
- *   管理画面   … 運用担当者向け。操作ができる。毎日見る。
- *   このページ … 上長向け。読むだけ。ときどき開く。URL をブックマークして使う。
+ * 管理画面の最上段に出す「信号」を作る。
  *
- * 権限は社内ドメインで判定する。既定ではスクリプト所有者と同じドメインの
- * アカウントなら誰でも開ける（REPORT_DOMAINS で変えられる）。
- * ページに出るのは人数・日数・割合と仮名の被験者IDだけで、歩数や心拍などの
- * 測定値は一切出していない。社内に対して一人ずつ名簿を管理するほどのものではない。
- *
- * 個別に足したい相手（社外の共同研究者など）は REPORT_EMAILS に書く。
- * ADMIN_EMAILS に入っている人も開ける（管理者は上位権限とみなす）。
- * 読むだけなので、取り直しや撤回といった操作の入口は一切置いていない。
+ * 当初は上長向けに別ページ（?report=1）を用意したが、運用担当と上長の2人しか
+ * おらず、操作権限も両方に与えてよいため1画面に統合した。
+ * 違うのは読む深さだけなので、最初の3行で結論が分かるようにしてある。
  *
  * 中心に置いているのは「解析に使える被験者-日」。
  * 行数は指標にならない。1種類しか入っていない日は行としては存在するが、
@@ -21,57 +14,11 @@
 
 var REPORT_CORE = ['steps', 'resting_hr', 'sleep_total_min'];
 
-/** 閲覧者かどうか。違えば例外。 */
-function requireReportViewer_() {
-  var me = '';
-  try { me = String(Session.getActiveUser().getEmail() || '').toLowerCase(); } catch (e) {}
-  if (!me) {   // 匿名デプロイから開かれた場合はここで落ちる
-    Audit.log('report_denied', '', '(anonymous)');
-    throw new Error('権限がありません');
-  }
-
-  var list = function (k) {
-    return String(Props.getProperty(k) || '').split(',')
-      .map(function (x) { return x.trim().toLowerCase(); }).filter(String);
-  };
-
-  // 1) 個別に登録されたアドレス
-  if (list('REPORT_EMAILS').concat(list('ADMIN_EMAILS')).indexOf(me) >= 0) return me;
-
-  // 2) 社内ドメイン。既定は ADMIN_EMAILS の1件目と同じドメイン。
-  //    Session.getEffectiveUser() は使わない。管理画面が使っていない API を
-  //    足すと権限の再承認が必要になり、Web アプリ内では承認画面が出せずに止まる。
-  var domains = list('REPORT_DOMAINS');
-  if (!domains.length) {
-    var first = list('ADMIN_EMAILS')[0] || '';
-    var d = first.split('@')[1];
-    if (d && d.indexOf('gmail.com') < 0) domains = [d];   // 個人アカウント運用では効かせない
-  }
-  if (domains.indexOf(me.split('@')[1]) >= 0) return me;
-
-  Audit.log('report_denied', '', me);
-  throw new Error('権限がありません');
-}
-
-function renderReportPage_() {
-  try { requireReportViewer_(); }
-  catch (e) {
-    return page_('権限がありません',
-      '<p>このページは研究関係者専用です。</p>' +
-      '<p class="note">担当者の方へ：社内ドメインのアカウントであれば設定なしで開けます。' +
-      '社外の方に見せる場合は Script Properties の REPORT_EMAILS にアドレスを追加してください。</p>');
-  }
-  return HtmlService.createTemplateFromFile('ReportUI').evaluate()
-    .setTitle(studyName_() + ' 進捗')
-    .addMetaTag('viewport', 'width=device-width, initial-scale=1')
-    .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
-}
-
 // ---- google.script.run から呼ばれる関数 -----------------------------------
 
 /** 一目で分かる部分。信号（ok / warn / bad）と数字と一文。 */
 function reportSummary() {
-  requireReportViewer_();
+  requireAdmin_();
   var windowDays = 7;
 
   var subjects = Subjects.all();
@@ -152,7 +99,7 @@ function coreCount_(r) {
  * 連携者が増えた直後は過去の率が低めに出る。傾きを見るための線と考える。
  */
 function reportTrend(days) {
-  requireReportViewer_();
+  requireAdmin_();
   days = Math.min(Math.max(parseInt(days, 10) || 30, 7), 90);
 
   var axis = lastDays_(days), idx = {};
@@ -180,10 +127,4 @@ function reportTrend(days) {
     rate: perDay.map(function (n) { return authorized ? Math.round(n / authorized * 1000) / 10 : null; }),
     cumulative: cum
   };
-}
-
-/** カバレッジ格子。管理画面と同じ中身を閲覧権限で返す。 */
-function reportCoverage(days) {
-  requireReportViewer_();
-  return coverageData_(days);
 }
