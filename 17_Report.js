@@ -5,7 +5,12 @@
  *   管理画面   … 運用担当者向け。操作ができる。毎日見る。
  *   このページ … 上長向け。読むだけ。ときどき開く。URL をブックマークして使う。
  *
- * 権限は別枠。Script Properties の REPORT_EMAILS に登録したアカウントが開ける。
+ * 権限は社内ドメインで判定する。既定ではスクリプト所有者と同じドメインの
+ * アカウントなら誰でも開ける（REPORT_DOMAINS で変えられる）。
+ * ページに出るのは人数・日数・割合と仮名の被験者IDだけで、歩数や心拍などの
+ * 測定値は一切出していない。社内に対して一人ずつ名簿を管理するほどのものではない。
+ *
+ * 個別に足したい相手（社外の共同研究者など）は REPORT_EMAILS に書く。
  * ADMIN_EMAILS に入っている人も開ける（管理者は上位権限とみなす）。
  * 読むだけなので、取り直しや撤回といった操作の入口は一切置いていない。
  *
@@ -20,16 +25,31 @@ var REPORT_CORE = ['steps', 'resting_hr', 'sleep_total_min'];
 function requireReportViewer_() {
   var me = '';
   try { me = String(Session.getActiveUser().getEmail() || '').toLowerCase(); } catch (e) {}
+  if (!me) {   // 匿名デプロイから開かれた場合はここで落ちる
+    Audit.log('report_denied', '', '(anonymous)');
+    throw new Error('権限がありません');
+  }
+
   var list = function (k) {
     return String(Props.getProperty(k) || '').split(',')
       .map(function (x) { return x.trim().toLowerCase(); }).filter(String);
   };
-  var allow = list('REPORT_EMAILS').concat(list('ADMIN_EMAILS'));
-  if (!me || allow.indexOf(me) < 0) {
-    Audit.log('report_denied', '', me || '(anonymous)');
-    throw new Error('権限がありません');
+
+  // 1) 個別に登録されたアドレス
+  if (list('REPORT_EMAILS').concat(list('ADMIN_EMAILS')).indexOf(me) >= 0) return me;
+
+  // 2) 社内ドメイン。既定はスクリプト所有者と同じドメイン。
+  var domains = list('REPORT_DOMAINS');
+  if (!domains.length) {
+    var owner = '';
+    try { owner = String(Session.getEffectiveUser().getEmail() || '').toLowerCase(); } catch (e) {}
+    var d = owner.split('@')[1];
+    if (d && d.indexOf('gmail.com') < 0) domains = [d];   // 個人アカウント運用では効かせない
   }
-  return me;
+  if (domains.indexOf(me.split('@')[1]) >= 0) return me;
+
+  Audit.log('report_denied', '', me);
+  throw new Error('権限がありません');
 }
 
 function renderReportPage_() {
@@ -37,8 +57,8 @@ function renderReportPage_() {
   catch (e) {
     return page_('権限がありません',
       '<p>このページは研究関係者専用です。</p>' +
-      '<p class="note">担当者の方へ：Script Properties の REPORT_EMAILS に閲覧者の' +
-      'アドレスを登録してください。</p>');
+      '<p class="note">担当者の方へ：社内ドメインのアカウントであれば設定なしで開けます。' +
+      '社外の方に見せる場合は Script Properties の REPORT_EMAILS にアドレスを追加してください。</p>');
   }
   return HtmlService.createTemplateFromFile('ReportUI').evaluate()
     .setTitle(studyName_() + ' 進捗')
