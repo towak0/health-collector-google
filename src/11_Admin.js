@@ -133,7 +133,8 @@ function setProp(key, value) {
 function installTriggers() {
   // onManualFetchEdit は廃止。過去に作られたトリガーを消すためだけに名前を残す。
   var wanted = ['runDailyIngest', 'runCanaryCheck', 'runWeeklyDevices',
-                'sendDailyDigest', 'runWeeklyCatchup', 'onManualFetchEdit'];
+                'sendDailyDigest', 'runWeeklyCatchup', 'sendProgressReport',
+                'onManualFetchEdit'];
   ScriptApp.getProjectTriggers().forEach(function (t) {
     if (wanted.indexOf(t.getHandlerFunction()) >= 0) ScriptApp.deleteTrigger(t);
   });
@@ -145,6 +146,8 @@ function installTriggers() {
   uids.push(ScriptApp.newTrigger('runWeeklyDevices').timeBased().atHour(4).everyDays(1).inTimezone(TZ).create().getUniqueId());
   // 週次キャッチアップ：月曜 0時台に直近7日を取り直す（未同期分の回収）
   uids.push(ScriptApp.newTrigger('runWeeklyCatchup').timeBased().onWeekDay(ScriptApp.WeekDay.MONDAY).atHour(0).inTimezone(TZ).create().getUniqueId());
+  // 週次の進捗報告：月曜 10時台。キャッチアップ（0時）の後に送るので当週分が反映される。
+  uids.push(ScriptApp.newTrigger('sendProgressReport').timeBased().onWeekDay(ScriptApp.WeekDay.MONDAY).atHour(10).inTimezone(TZ).create().getUniqueId());
 
   // cleanupOneOffTriggers_ が定時トリガーを消さないようにUIDを記録しておく
   Props.setProperty('scheduled_trigger_uids', uids.join(','));
