@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<base target="_top">
+<meta charset="utf-8">
+<style>
+  *{box-sizing:border-box}
+  body{font-family:system-ui,-apple-system,"Hiragino Sans","Noto Sans JP",sans-serif;
+       margin:0;padding:24px 16px 80px;background:#f6f8fa;color:#202124;line-height:1.7}
+  .wrap{max-width:780px;margin:0 auto}
+  h1{font-size:1.25rem;margin:0 0 4px}
+  .sub{color:#5f6368;font-size:.85rem;margin:0 0 8px}
+  .topbar{display:flex;justify-content:space-between;align-items:flex-end;
+          flex-wrap:wrap;gap:12px;margin-bottom:20px}
+  .step{background:#fff;border:1px solid #e0e3e7;border-radius:10px;
+        padding:18px;margin-bottom:14px}
+  .step.done{border-color:#c6e9d1;background:#fbfffc}
+  .head{display:flex;align-items:center;gap:10px;margin-bottom:6px}
+  .num{width:26px;height:26px;border-radius:50%;background:#e8eaed;color:#5f6368;
+       display:flex;align-items:center;justify-content:center;
+       font-size:.8rem;font-weight:700;flex:0 0 26px}
+  .done .num{background:#0b8043;color:#fff}
+  .head h2{font-size:.98rem;margin:0}
+  .why{color:#5f6368;font-size:.82rem;margin:0 0 14px 36px}
+  .body{margin-left:36px}
+  .f{display:flex;flex-direction:column;gap:4px;margin-bottom:12px}
+  .f label{font-size:.75rem;color:#5f6368}
+  .f .hint{font-size:.72rem;color:#80868b}
+  input{font:inherit;padding:9px 10px;border:1px solid #dadce0;border-radius:6px;
+        background:#fff;width:100%;max-width:440px}
+  .two{display:flex;flex-wrap:wrap;gap:12px}
+  .two .f{flex:1 1 200px}
+  button{font:inherit;font-weight:600;padding:9px 18px;border:0;border-radius:6px;
+         background:#1a73e8;color:#fff;cursor:pointer}
+  button:hover{background:#1765cc}
+  button:disabled{background:#c5c9ce;cursor:default}
+  button.sec{background:#fff;color:#1a73e8;border:1px solid #dadce0}
+  button.sec:hover{background:#f1f3f4}
+  a.btn{display:inline-block;background:#1a73e8;color:#fff;padding:9px 18px;
+        border-radius:6px;text-decoration:none;font-weight:600;font-size:.9rem}
+  .out{margin-top:10px;padding:10px 12px;border-radius:6px;white-space:pre-wrap;
+       font-size:.82rem;display:none}
+  .out.ok{background:#e6f4ea;color:#137333;display:block}
+  .out.ng{background:#fce8e6;color:#c5221f;display:block}
+  .out.busy{background:#e8f0fe;color:#1a73e8;display:block}
+  .warn{background:#fef7e0;border-left:3px solid #f9ab00;padding:10px 12px;
+        border-radius:4px;font-size:.82rem;margin:12px 0}
+  .links a{color:#1a73e8;margin-right:16px;font-size:.85rem}
+  code{background:#f1f3f4;padding:1px 5px;border-radius:3px;font-size:.85em;
+       word-break:break-all}
+  .chk{font-size:.82rem;color:#5f6368;margin-top:8px}
+  .chk b{color:#137333}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="topbar">
+    <div>
+      <h1 id="title">初期設定</h1>
+      <p class="sub" id="whoami">読み込み中…</p>
+    </div>
+    <a class="btn" id="toAdmin" href="#">管理画面へ</a>
+  </div>
+
+  <!-- 1 -->
+  <div class="step" id="s1">
+    <div class="head"><div class="num">1</div><h2>研究の基本情報</h2></div>
+    <p class="why">画面に出る名前と、通知の宛先、この画面を開ける人を決めます。</p>
+    <div class="body">
+      <div class="f">
+        <label>研究名</label>
+        <input id="studyName" placeholder="GoogleHealth">
+        <span class="hint">画面のタイトルに出ます。あとから変えられます。</span>
+      </div>
+      <div class="f">
+        <label>通知の宛先</label>
+        <input id="alertEmail" placeholder="ikegami.towako@humanome.jp">
+        <span class="hint">毎日の取得結果と、異常時の警告が届きます。</span>
+      </div>
+      <div class="f">
+        <label>この画面を開ける人（カンマ区切り）</label>
+        <input id="adminEmails" placeholder="a@humanome.jp, b@humanome.jp">
+        <span class="hint">ここに入っていないアドレスからは設定も管理もできません。</span>
+      </div>
+      <button id="b1">保存</button>
+      <div class="out" id="o1"></div>
+    </div>
+  </div>
+
+  <!-- 2 -->
+  <div class="step" id="s2">
+    <div class="head"><div class="num">2</div><h2>保存先を作る</h2></div>
+    <p class="why">スプレッドシート2つとドライブのフォルダを自動で作ります。すでにあれば作り直しません。</p>
+    <div class="body">
+      <button id="b2">作成する</button>
+      <div class="out" id="o2"></div>
+      <p class="links" id="l2" style="margin:12px 0 0"></p>
+    </div>
+  </div>
+
+  <!-- 3 -->
+  <div class="step" id="s3">
+    <div class="head"><div class="num">3</div><h2>配布用の URL</h2></div>
+    <p class="why">被験者が開くページのアドレスです。Apps Script の「デプロイ」で発行した <code>/exec</code> で終わる URL を入れてください。</p>
+    <div class="body">
+      <div class="f">
+        <label>ウェブアプリの URL</label>
+        <input id="webappUrl" placeholder="https://script.google.com/macros/s/.../exec">
+      </div>
+      <button id="b3">保存</button>
+      <div class="out" id="o3"></div>
+      <div class="warn">
+        この URL は被験者に配るリンクの土台になります。あとで「新しいデプロイ」を作ると
+        URL が変わり、配布済みのリンクが全部無効になります。更新するときは必ず
+        「デプロイを管理」から<b>既存のデプロイの新しいバージョン</b>として行ってください。
+      </div>
+    </div>
+  </div>
+
+  <!-- 4 -->
+  <div class="step" id="s4">
+    <div class="head"><div class="num">4</div><h2>試験の設定</h2></div>
+    <p class="why">Google Cloud で発行したクライアント情報と、被験者IDの付け方を決めます。</p>
+    <div class="body">
+      <div class="two">
+        <div class="f">
+          <label>試験の識別子</label>
+          <input id="configName" placeholder="Experiment_A">
+          <span class="hint">内部で使う名前。英数字と _ のみ。</span>
+        </div>
+        <div class="f">
+          <label>被験者IDの接頭辞</label>
+          <input id="baseUsername" placeholder="Experiment_A">
+          <span class="hint">Experiment_A_001 のように採番されます。</span>
+        </div>
+      </div>
+      <div class="f">
+        <label>GCP プロジェクト名（任意）</label>
+        <input id="gcpProject" placeholder="humanome-hs-subjects">
+      </div>
+      <div class="f">
+        <label>クライアント ID</label>
+        <input id="clientId" placeholder="xxxxx.apps.googleusercontent.com">
+      </div>
+      <div class="f">
+        <label>クライアント シークレット</label>
+        <input id="clientSecret" type="password" placeholder="登録済みの場合は空のままでOK">
+        <span class="hint">保存先は Script Properties のみ。シートにも画面にも残りません。</span>
+      </div>
+      <button id="b4">保存</button>
+      <div class="out" id="o4"></div>
+      <div class="warn">
+        <b>配布後にこの2つは変えられません。</b>
+        試験の識別子はトークンの保存キー、接頭辞は被験者IDそのもので、
+        シート・Drive のパス・配布済みリンクに埋め込まれます。決め直すなら今のうちに。
+      </div>
+    </div>
+  </div>
+
+  <!-- 5 -->
+  <div class="step" id="s5">
+    <div class="head"><div class="num">5</div><h2>被験者IDと連携URLを発行</h2></div>
+    <p class="why">人数ぶんの ID と、それぞれ専用のリンクを作ります。</p>
+    <div class="body">
+      <div class="two">
+        <div class="f"><label>本番</label><input id="nProd" value="95"></div>
+        <div class="f"><label>テスト</label><input id="nTest" value="1"></div>
+      </div>
+      <button id="b5">発行する</button>
+      <button class="sec" id="b5csv">配布用CSVを書き出す</button>
+      <div class="out" id="o5"></div>
+      <div class="warn">
+        未審査のアプリは<b>累計100人まで</b>で、この枠は取り消せません。
+        テスト用の連携も1枠消費します。
+      </div>
+    </div>
+  </div>
+
+  <!-- 6 -->
+  <div class="step" id="s6">
+    <div class="head"><div class="num">6</div><h2>自動実行を仕掛ける</h2></div>
+    <p class="why">毎日の取得と、週次の取りこぼし回収、トークンの生存確認を予約します。</p>
+    <div class="body">
+      <button id="b6">設置する</button>
+      <button class="sec" id="b6tidy">シートとフォルダを整える</button>
+      <div class="out" id="o6"></div>
+      <div class="chk" id="trg"></div>
+    </div>
+  </div>
+
+  <!-- 7 -->
+  <div class="step" id="s7">
+    <div class="head"><div class="num">7</div><h2>自分で試す</h2></div>
+    <p class="why">テスト用のリンクを開いて、被験者と同じ流れを一度通してください。</p>
+    <div class="body">
+      <div id="testBox" class="chk">まだ発行されていません。</div>
+      <div class="warn">
+        通常のウィンドウだと複数の Google アカウントが混ざって挙動が読めません。
+        <b>シークレットウィンドウ</b>で開いてください。
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+function $(id){return document.getElementById(id);}
+function show(el,cls,txt){el.className='out '+cls;el.textContent=txt;}
+function esc(s){return String(s).replace(/[&<>"]/g,function(c){
+  return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
+
+function run(btn,out,fn,args,after){
+  btn.disabled=true;
+  show(out,'busy','実行中…');
+  var r=google.script.run
+    .withSuccessHandler(function(m){
+      btn.disabled=false; show(out,'ok',m||'完了しました');
+      if(after) after(m);
+      load();
+    })
+    .withFailureHandler(function(e){ btn.disabled=false; show(out,'ng',e.message); });
+  r[fn].apply(r,args||[]);
+}
+
+function mark(id,done){ $(id).className = 'step' + (done?' done':''); }
+
+function load(){
+  google.script.run.withSuccessHandler(function(s){
+    $('title').textContent = s.studyName + ' 初期設定';
+    document.title = s.studyName + ' 初期設定';
+    $('whoami').textContent = s.me;
+    $('toAdmin').href = '?admin=1';
+
+    if(!$('studyName').value)   $('studyName').value   = s.studyName;
+    if(!$('alertEmail').value)  $('alertEmail').value  = s.alertEmail;
+    if(!$('adminEmails').value) $('adminEmails').value = s.adminEmails || s.me;
+    if(!$('webappUrl').value)   $('webappUrl').value   = s.webappUrl;
+
+    if(s.config){
+      if(!$('configName').value)   $('configName').value   = s.config.configName;
+      if(!$('baseUsername').value) $('baseUsername').value = s.config.baseUsername;
+      if(!$('gcpProject').value)   $('gcpProject').value   = s.config.gcpProject;
+      if(!$('clientId').value)     $('clientId').value     = s.config.clientId;
+    }
+
+    mark('s1', !!(s.alertEmail && s.adminEmails));
+    mark('s2', s.sheetsReady);
+    mark('s3', !!s.webappUrl);
+    mark('s4', !!(s.config && s.config.clientId && s.hasSecret));
+    mark('s5', s.subjectCount > 0);
+    mark('s6', s.triggers.length >= 4);
+    mark('s7', s.authorized > 0);
+
+    $('l2').innerHTML = s.sheetsReady
+      ? '<a href="'+s.dataUrl+'" target="_blank">データのシート</a>'+
+        '<a href="'+s.opsUrl+'" target="_blank">運用のシート</a>'+
+        '<a href="'+s.driveUrl+'" target="_blank">ドライブ</a>'
+      : '';
+
+    $('trg').innerHTML = s.triggers.length
+      ? '設置済み: <b>'+esc(s.triggers.join(', '))+'</b>' : '';
+
+    $('testBox').innerHTML = s.testUrl
+      ? esc(s.testId)+'<br><code>'+esc(s.testUrl)+'</code>'+
+        (s.authorized ? '<br><b>連携済み：'+s.authorized+'名</b>' : '')
+      : 'まだ発行されていません。';
+  }).withFailureHandler(function(e){
+    $('whoami').textContent = '読み込みに失敗しました: '+e.message;
+  }).setupStatus();
+}
+
+$('b1').onclick=function(){ run($('b1'),$('o1'),'setupSaveBasics',[{
+  studyName:$('studyName').value, alertEmail:$('alertEmail').value,
+  adminEmails:$('adminEmails').value }]); };
+
+$('b2').onclick=function(){ run($('b2'),$('o2'),'setupRunSetup'); };
+
+$('b3').onclick=function(){ run($('b3'),$('o3'),'setupSaveWebappUrl',[$('webappUrl').value]); };
+
+$('b4').onclick=function(){ run($('b4'),$('o4'),'setupSaveConfig',[{
+  configName:$('configName').value, baseUsername:$('baseUsername').value,
+  gcpProject:$('gcpProject').value, clientId:$('clientId').value,
+  clientSecret:$('clientSecret').value }], function(){ $('clientSecret').value=''; }); };
+
+$('b5').onclick=function(){ run($('b5'),$('o5'),'setupIssueSubjects',
+  [$('nProd').value, $('nTest').value]); };
+$('b5csv').onclick=function(){ run($('b5csv'),$('o5'),'setupExportCsv'); };
+
+$('b6').onclick=function(){ run($('b6'),$('o6'),'setupInstallTriggers'); };
+$('b6tidy').onclick=function(){ run($('b6tidy'),$('o6'),'setupTidy'); };
+
+load();
+</script>
+</body>
+</html>
+

@@ -1,0 +1,5 @@
+{
+  "scriptId": "<SCRIPT_ID_OF_STANDALONE_PROJECT>",
+  "rootDir": ".",
+  "filePushOrder": []
+}

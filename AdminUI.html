@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<base target="_top">
+<meta charset="utf-8">
+<style>
+  *{box-sizing:border-box}
+  body{font-family:system-ui,-apple-system,"Hiragino Sans","Noto Sans JP",sans-serif;
+       margin:0;padding:24px 16px 64px;background:#f6f8fa;color:#202124;line-height:1.7}
+  .wrap{max-width:860px;margin:0 auto}
+  h1{font-size:1.25rem;margin:0 0 4px}
+  .sub{color:#5f6368;font-size:.85rem;margin:0 0 20px}
+  .card{background:#fff;border:1px solid #e0e3e7;border-radius:10px;padding:18px;margin-bottom:16px}
+  .card h2{font-size:.95rem;margin:0 0 14px;color:#3c4043}
+  .stats{display:flex;flex-wrap:wrap;gap:10px}
+  .stat{flex:1 1 120px;background:#f8f9fa;border-radius:8px;padding:12px 14px}
+  .stat .n{font-size:1.5rem;font-weight:700;line-height:1.2}
+  .stat .l{font-size:.75rem;color:#5f6368}
+  .row{display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end}
+  .f{display:flex;flex-direction:column;gap:4px}
+  .f label{font-size:.75rem;color:#5f6368}
+  input,select{font:inherit;padding:9px 10px;border:1px solid #dadce0;border-radius:6px;background:#fff}
+  button{font:inherit;font-weight:600;padding:10px 20px;border:0;border-radius:6px;
+         background:#1a73e8;color:#fff;cursor:pointer}
+  button:hover{background:#1765cc}
+  button:disabled{background:#c5c9ce;cursor:default}
+  button.sec{background:#fff;color:#1a73e8;border:1px solid #dadce0}
+  button.sec:hover{background:#f1f3f4}
+  .out{margin-top:14px;padding:12px;border-radius:6px;white-space:pre-wrap;
+       font-size:.85rem;display:none}
+  .out.ok{background:#e6f4ea;color:#137333;display:block}
+  .out.ng{background:#fce8e6;color:#c5221f;display:block}
+  .out.busy{background:#e8f0fe;color:#1a73e8;display:block}
+  table{border-collapse:collapse;width:100%;font-size:.8rem}
+  th,td{border-bottom:1px solid #e8eaed;padding:7px 8px;text-align:left;white-space:nowrap}
+  th{color:#5f6368;font-weight:600;background:#f8f9fa}
+  .scroll{overflow-x:auto}
+  .links a{color:#1a73e8;margin-right:18px;font-size:.85rem}
+  .topbar{display:flex;justify-content:space-between;align-items:flex-end;
+          flex-wrap:wrap;gap:12px;margin-bottom:20px}
+  .btn2{display:inline-block;background:#fff;color:#1a73e8;border:1px solid #dadce0;
+        padding:9px 18px;border-radius:6px;text-decoration:none;font-weight:600;font-size:.9rem}
+  .btn2:hover{background:#f1f3f4}
+  .tag{display:inline-block;padding:1px 7px;border-radius:10px;font-size:.72rem}
+  .tag.ok{background:#e6f4ea;color:#137333}
+  .tag.ng{background:#fce8e6;color:#c5221f}
+  .tag.bad{background:#fce8e6;color:#c5221f}
+  .tag.warn{background:#fef7e0;color:#b06000}
+  .tag.info{background:#e8f0fe;color:#1a73e8}
+  td.detail{white-space:normal;color:#5f6368}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="topbar">
+    <div>
+      <h1 id="title">読み込み中…</h1>
+      <p class="sub" id="whoami">読み込み中…</p>
+    </div>
+    <a class="btn2" href="?setup=1">初期設定へ</a>
+  </div>
+
+  <div class="card">
+    <h2>状況</h2>
+    <div class="stats" id="stats"></div>
+    <p class="links" style="margin:14px 0 0" id="links"></p>
+  </div>
+
+  <div class="card">
+    <h2>データを取り直す</h2>
+    <div class="row">
+      <div class="f"><label>開始日</label><input type="date" id="from"></div>
+      <div class="f"><label>終了日</label><input type="date" id="to"></div>
+      <div class="f"><label>被験者</label>
+        <select id="hid"><option value="">全員</option></select>
+      </div>
+      <button id="go">実行</button>
+    </div>
+    <div class="out" id="fetchOut"></div>
+    <p class="sub" style="margin:10px 0 0">
+      同じ日を取り直しても行は増えません（上書きされます）。
+      期間が長いと途中で止まることがあります。その場合はもう一度実行すると続きから進みます。
+    </p>
+  </div>
+
+  <div class="card">
+    <h2>状態の診断</h2>
+    <p class="sub" style="margin:-8px 0 12px">
+      直近3日のデータと端末の同期状況から、欠測の理由を切り分けます。
+      追加の通信はしません。</p>
+    <button class="sec" id="btnDiag">読み込む</button>
+    <div class="scroll" id="diagOut" style="margin-top:12px"></div>
+  </div>
+
+  <div class="card">
+    <h2>最近のデータ</h2>
+    <button class="sec" id="btnData">読み込む</button>
+    <div class="scroll" id="dataOut" style="margin-top:12px"></div>
+  </div>
+
+  <div class="card">
+    <h2>取得ログ</h2>
+    <button class="sec" id="btnLog">読み込む</button>
+    <div class="scroll" id="logOut" style="margin-top:12px"></div>
+  </div>
+
+</div>
+
+<script>
+function $(id) { return document.getElementById(id); }
+function show(el, cls, txt) { el.className = 'out ' + cls; el.textContent = txt; }
+function esc(s) {
+  return String(s).replace(/[&<>"]/g, function (c) {
+    return { '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[c];
+  });
+}
+function stat(n, l) {
+  return '<div class="stat"><div class="n">' + n + '</div><div class="l">' + l + '</div></div>';
+}
+function iso(d) { return d.toISOString().substring(0, 10); }
+
+// 初期値：先週1週間
+var now = new Date();
+$('to').value   = iso(new Date(now.getTime() - 864e5));
+$('from').value = iso(new Date(now.getTime() - 7 * 864e5));
+
+// 概況
+google.script.run
+  .withSuccessHandler(function (s) {
+    $('title').textContent = s.studyName + ' 管理';
+    document.title = s.studyName + ' 管理';
+    $('whoami').textContent = 'データ最終更新 ' + s.lastUpdate + ' ／ 記録 ' + s.dataRows + ' 行';
+    $('stats').innerHTML =
+      stat(s.authorized, '連携済み') + stat(s.issued, '未連携') +
+      stat(s.withdrawn, '撤回') + stat(s.total, '被験者 合計');
+    $('links').innerHTML =
+      '<a href="' + s.dataUrl  + '" target="_blank">データのシート</a>' +
+      '<a href="' + s.opsUrl   + '" target="_blank">運用のシート</a>' +
+      '<a href="' + s.driveUrl + '" target="_blank">ドライブ</a>';
+    var sel = $('hid');
+    s.subjects.forEach(function (id) {
+      var o = document.createElement('option');
+      o.value = id; o.textContent = id;
+      sel.appendChild(o);
+    });
+  })
+  .withFailureHandler(function (e) {
+    $('whoami').textContent = '読み込みに失敗しました: ' + e.message;
+  })
+  .adminSummary();
+
+// 取り直す
+$('go').onclick = function () {
+  var b = $('go');
+  b.disabled = true;
+  show($('fetchOut'), 'busy', '実行中…（長い期間だと数分かかります）');
+  google.script.run
+    .withSuccessHandler(function (m) { b.disabled = false; show($('fetchOut'), 'ok', m); })
+    .withFailureHandler(function (e) { b.disabled = false; show($('fetchOut'), 'ng', e.message); })
+    .adminFetch($('from').value, $('to').value, $('hid').value);
+};
+
+// 状態の診断
+$('btnDiag').onclick = function () {
+  var b = $('btnDiag');
+  b.disabled = true; b.textContent = '読み込み中…';
+  google.script.run
+    .withSuccessHandler(function (rows) {
+      b.disabled = false; b.textContent = '再読み込み';
+      if (!rows.length) { $('diagOut').textContent = '連携済みの被験者がいません。'; return; }
+      var ng = rows.filter(function (r) { return r.level !== 'ok'; }).length;
+      var h = '<p class="sub">' + (ng ? ng + ' 名に対応が要るかもしれません' : '全員正常です') + '</p>';
+      h += '<table><tr><th>被験者</th><th>状態</th><th>内容</th>' +
+           '<th>最終同期</th><th>電池</th><th>直近3日（歩/心/睡）</th></tr>';
+      rows.forEach(function (r) {
+        h += '<tr><td>' + esc(r.humanome_id) + '</td>' +
+             '<td><span class="tag ' + r.level + '">' + esc(r.label) + '</span></td>' +
+             '<td class="detail">' + esc(r.detail) + '</td>' +
+             '<td>' + esc(r.lastSync) + (r.syncAge !== '' ? '（' + r.syncAge + '日前）' : '') + '</td>' +
+             '<td>' + (r.battery !== '' ? esc(r.battery) + '%' : '') + '</td>' +
+             '<td>' + r.days.steps + ' / ' + r.days.hr + ' / ' + r.days.sleep + '</td></tr>';
+      });
+      $('diagOut').innerHTML = h + '</table>';
+    })
+    .withFailureHandler(function (e) {
+      b.disabled = false; b.textContent = '再読み込み';
+      $('diagOut').textContent = e.message;
+    })
+    .adminDiagnose();
+};
+
+// 最近のデータ
+$('btnData').onclick = function () {
+  var b = $('btnData');
+  b.disabled = true; b.textContent = '読み込み中…';
+  google.script.run
+    .withSuccessHandler(function (d) {
+      b.disabled = false; b.textContent = '再読み込み';
+      var h = '<table><tr>' + d.cols.map(function (c) { return '<th>' + esc(c) + '</th>'; }).join('') + '</tr>';
+      d.rows.forEach(function (r) {
+        h += '<tr>' + r.map(function (v) { return '<td>' + esc(v) + '</td>'; }).join('') + '</tr>';
+      });
+      $('dataOut').innerHTML = h + '</table>';
+    })
+    .withFailureHandler(function (e) {
+      b.disabled = false; b.textContent = '再読み込み';
+      $('dataOut').textContent = e.message;
+    })
+    .adminRecent(15);
+};
+
+// 取得ログ
+$('btnLog').onclick = function () {
+  var b = $('btnLog');
+  b.disabled = true; b.textContent = '読み込み中…';
+  google.script.run
+    .withSuccessHandler(function (rows) {
+      b.disabled = false; b.textContent = '再読み込み';
+      var h = '<table><tr><th>時刻</th><th>データ型</th><th>期間</th>' +
+              '<th>結果</th><th>件数</th><th>エラー</th></tr>';
+      rows.forEach(function (r) {
+        var tag = r.status === 'ok'
+          ? '<span class="tag ok">ok</span>'
+          : '<span class="tag ng">' + esc(r.code) + '</span>';
+        h += '<tr><td>' + esc(r.at) + '</td><td>' + esc(r.type) + '</td><td>' + esc(r.range) +
+             '</td><td>' + tag + '</td><td>' + esc(r.n) + '</td><td>' + esc(r.error) + '</td></tr>';
+      });
+      $('logOut').innerHTML = h + '</table>';
+    })
+    .withFailureHandler(function (e) {
+      b.disabled = false; b.textContent = '再読み込み';
+      $('logOut').textContent = e.message;
+    })
+    .adminLog(30);
+};
+</script>
+</body>
+</html>

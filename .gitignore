@@ -1,0 +1,9 @@
+# clasp のローカル設定（scriptId が入る。環境ごとに違うので追跡しない）
+.clasp.json
+
+# 9/14 時点の旧スナップショット（確認用。不要になったらフォルダごと削除）
+_snapshot_20260914/
+
+node_modules/
+*.local
+.DS_Store
