@@ -230,7 +230,8 @@ function load(){
     $('title').textContent = s.studyName + ' 初期設定';
     document.title = s.studyName + ' 初期設定';
     $('whoami').textContent = s.me;
-    $('toAdmin').href = '?admin=1';
+    if (s.selfUrl) { $('toAdmin').href = s.selfUrl + '?admin=1'; $('toAdmin').style.display = ''; }
+    else { $('toAdmin').style.display = 'none'; }
 
     if(!$('studyName').value)   $('studyName').value   = s.studyName;
     if(!$('alertEmail').value)  $('alertEmail').value  = s.alertEmail;

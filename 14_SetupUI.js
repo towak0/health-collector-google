@@ -75,6 +75,9 @@ function setupStatus() {
 
   return {
     me:          me,
+    // 相対パス（?admin=1）はサンドボックス iframe を基準に解決されて飛び先を失う。
+    // 絶対URLをサーバ側から渡す。
+    selfUrl:     (function () { try { return ScriptApp.getService().getUrl(); } catch (e) { return ''; } })(),
     studyName:   P('STUDY_NAME') || 'HealthStudy',
     adminEmails: P('ADMIN_EMAILS'),
     alertEmail:  P('ALERT_EMAIL'),
