@@ -164,7 +164,8 @@ function pageIsOlderThan_(body, fromIso) {
   if (!pts.length) return true;
   var oldest = null;
   pts.forEach(function (pt) {
-    var iv = (pt.sleep && pt.sleep.interval) || pt.interval || {};
+    var iv = (pt.sleep && pt.sleep.interval) ||
+             (pt.exercise && pt.exercise.interval) || pt.interval || {};
     var t  = iv.startTime || pt.startTime;
     if (t && (!oldest || t < oldest)) oldest = t;
   });

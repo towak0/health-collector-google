@@ -69,6 +69,7 @@ var Sink = {
     var daily    = {};   // "hid|date" → 行オブジェクト
     var sessions = [];
     var stages   = [];
+    var activities = [];
     var rawByKey = {};   // "hid|date|dataType" → intraday レコード配列
     var touched  = {};   // hid → データが1点でもあったか
 
@@ -89,6 +90,8 @@ var Sink = {
         collectIntraday_(rawByKey, hid, dt, points);
       } else if (dt.id === 'sleep') {
         collectSleep_(daily, sessions, stages, hid, points, jobId, meta);
+      } else if (dt.id === 'exercise') {
+        collectActivities_(activities, hid, points, meta);
       } else if (DAILY_LIST_MAP[dt.id]) {
         collectDailyList_(daily, hid, dt, points, jobId);
       } else {
@@ -100,6 +103,7 @@ var Sink = {
     if (dailyRows.length) upsertDailySummary_(dailyRows);
     if (sessions.length)  upsertByKey_(dataSheet_(DATA_SHEETS.sleep_sessions), COL_SLEEP_SESSIONS, sessions, 'dedupe_key');
     if (stages.length)    upsertByKey_(dataSheet_(DATA_SHEETS.sleep_stages),   COL_SLEEP_STAGES,   stages,   'dedupe_key');
+    if (activities.length) upsertByKey_(dataSheet_(DATA_SHEETS.activities),   COL_ACTIVITIES,     activities, 'dedupe_key');
 
     Object.keys(rawByKey).forEach(function (k) {
       var p = k.split('|');
@@ -263,6 +267,86 @@ function collectSleep_(map, sessions, stages, hid, points, jobId, meta) {
 }
 
 /** 心拍 intraday。スプレッドシートには絶対に入れない（§8.4）。日付ごとに束ねて Drive へ。 */
+/** "1090.800s" → 分。値が無ければ空文字。 */
+function secStrToMin_(v) {
+  if (v === null || v === undefined || v === '') return '';
+  var n = Number(String(v).replace(/s$/, ''));
+  return isFinite(n) ? Math.round(n / 60 * 100) / 100 : '';
+}
+
+/**
+ * UTC の時刻と、その地点の UTC オフセット（"32400s"）から現地の日付を出す。
+ * TZ 定数ではなく被験者側のオフセットを使う。移動中・海外の被験者でも正しくなる。
+ */
+function localDateFromOffset_(isoUtc, offsetStr) {
+  if (!isoUtc) return '';
+  var off = Number(String(offsetStr || '0').replace(/s$/, '')) || 0;
+  var t = new Date(isoUtc).getTime();
+  if (!isFinite(t)) return '';
+  return Utilities.formatDate(new Date(t + off * 1000), 'UTC', 'yyyy-MM-dd');
+}
+
+function numOrBlank_(v) {
+  if (v === null || v === undefined || v === '') return '';
+  var n = Number(v);
+  return isFinite(n) ? n : '';
+}
+
+/**
+ * 運動セッション。1回の運動＝1行。
+ *
+ * exercise はフィルタを受け付けない（INVALID_DATA_POINT_FILTER_DATA_TYPE_MEMBER）。
+ * 新しい順に全件返るので、期間外のものが混ざる。meta.from / meta.to で絞る。
+ * sleep と同じ扱い。
+ */
+function collectActivities_(out, hid, points, meta) {
+  points.forEach(function (pt) {
+    var ex = pt.exercise;
+    if (!ex) return;
+    var iv = ex.interval || {};
+    var date = localDateFromOffset_(iv.startTime, iv.startUtcOffset);
+    if (!date) return;
+    if (meta && meta.from && date < meta.from) return;
+    if (meta && meta.to   && date > meta.to)   return;
+
+    var m   = ex.metricsSummary || {};
+    var z   = m.heartRateZoneDurations || {};
+    var dev = (pt.dataSource && pt.dataSource.device) || {};
+
+    var durMin = '';
+    if (iv.startTime && iv.endTime) {
+      var d = (new Date(iv.endTime).getTime() - new Date(iv.startTime).getTime()) / 60000;
+      if (isFinite(d)) durMin = Math.round(d * 100) / 100;
+    }
+
+    out.push({
+      humanome_id:         hid,
+      civil_date:          date,
+      session_id:          String(pt.name || ''),
+      exercise_type:       String(ex.exerciseType || ''),
+      display_name:        String(ex.displayName || ''),
+      start_at:            String(iv.startTime || ''),
+      end_at:              String(iv.endTime || ''),
+      duration_min:        durMin,
+      active_duration_min: secStrToMin_(ex.activeDuration),
+      calories_kcal:       numOrBlank_(m.caloriesKcal),
+      // distanceMillimeters はミリメートル
+      distance_m:          m.distanceMillimeters === undefined ? '' :
+                             Math.round(Number(m.distanceMillimeters) * 0.001 * 100) / 100,
+      steps:               numOrBlank_(m.steps),
+      avg_hr:              numOrBlank_(m.averageHeartRateBeatsPerMinute),
+      azm:                 numOrBlank_(m.activeZoneMinutes),
+      hr_light_min:        secStrToMin_(z.lightTime),
+      hr_moderate_min:     secStrToMin_(z.moderateTime),
+      hr_vigorous_min:     secStrToMin_(z.vigorousTime),
+      hr_peak_min:         secStrToMin_(z.peakTime),
+      device:              String(dev.displayName || ''),
+      dedupe_key:          sha256Hex_(String(pt.name || '')),
+      updated_at:          nowIso_()
+    });
+  });
+}
+
 function collectIntraday_(rawByKey, hid, dt, points) {
   points.forEach(function (pt) {
     var start = pt.startTime || (pt.interval && pt.interval.startTime);

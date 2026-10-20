@@ -66,6 +66,7 @@ function runSetup() {
   ensureSheet_(dataSpreadsheet_(), DATA_SHEETS.daily_summary,  COL_DAILY_SUMMARY);
   ensureSheet_(dataSpreadsheet_(), DATA_SHEETS.sleep_sessions, COL_SLEEP_SESSIONS);
   ensureSheet_(dataSpreadsheet_(), DATA_SHEETS.sleep_stages,   COL_SLEEP_STAGES);
+  ensureSheet_(dataSpreadsheet_(), DATA_SHEETS.activities,    COL_ACTIVITIES);
   ensureSheet_(dataSpreadsheet_(), DATA_SHEETS.devices,        COL_DEVICES);
 
   seedDataTypes_();
@@ -111,7 +112,9 @@ function seedDataTypes_() {
     ['heart-rate',                   'rollUp',      '300s', 'metrics',  10000, 'drive_raw',      true],
     ['daily-resting-heart-rate',     'list',        '',     'metrics',  1440,  'daily_summary',  true],
     ['daily-heart-rate-variability', 'list',        '',     'metrics',  1440,  'daily_summary',  true],
-    ['sleep',                        'list',        '',     'sleep',    25,    'sleep_sessions', true]
+    ['sleep',                        'list',        '',     'sleep',    25,    'sleep_sessions', true],
+    // 運動セッション。sleep と同じくフィルタ不可・新しい順。
+    ['exercise',                     'list',        '',     'activity', 25,    'activities',     true]
   ];
   sh.getRange(2, 1, rows.length, COL_DATATYPES.length).setValues(rows);
 }
@@ -792,4 +795,21 @@ function probeExercise() {
     console.log('\n===== ' + t.label + ' [' + res.getResponseCode() + '] =====');
     console.log(res.getContentText().substring(0, 3000));
   });
+}
+
+/**
+ * あとから足したシートとデータ型を、既存プロジェクトに反映する。
+ * 立ち上げ済みのプロジェクトで1回だけ実行する。
+ * ensureSheet_ も datatypes の追記も、既にあるものは触らない。
+ */
+function migrateAddActivities() {
+  ensureSheet_(dataSpreadsheet_(), DATA_SHEETS.activities, COL_ACTIVITIES);
+
+  var sh   = opsSheet_(OPS_SHEETS.datatypes);
+  var rows = readSheetObjects_(sh);
+  var has  = rows.some(function (r) { return String(r.data_type_id).trim() === 'exercise'; });
+  if (!has) {
+    sh.appendRow(['exercise', 'list', '', 'activity', 25, 'activities', true]);
+  }
+  return 'activities シート: 準備完了 / datatypes の exercise: ' + (has ? '既にあり' : '追加した');
 }

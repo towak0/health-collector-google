@@ -63,6 +63,7 @@ var DATA_SHEETS = {
   daily_summary:  'daily_summary',
   sleep_sessions: 'sleep_sessions',
   sleep_stages:   'sleep_stages',
+  activities:     'activities',
   devices:        'devices'
 };
 
@@ -98,6 +99,18 @@ var COL_SLEEP_SESSIONS = [
   'minutes_to_fall_asleep','minutes_after_wakeup','dedupe_key','updated_at'
 ];
 
+/**
+ * 運動セッション。1回の運動＝1行。
+ * 日次の集計（daily_summary）には収まらないので別シートにする。
+ */
+var COL_ACTIVITIES = [
+  'humanome_id','civil_date','session_id','exercise_type','display_name',
+  'start_at','end_at','duration_min','active_duration_min',
+  'calories_kcal','distance_m','steps','avg_hr','azm',
+  'hr_light_min','hr_moderate_min','hr_vigorous_min','hr_peak_min',
+  'device','dedupe_key','updated_at'
+];
+
 var COL_SLEEP_STAGES = [
   'humanome_id','session_id','stage_index','stage_type','start_at','end_at','duration_min','dedupe_key'
 ];
@@ -117,6 +130,10 @@ var FILTER_TEMPLATES = {
   // ★ 実測：sleep はどのメンバーも filter に使えない（全て INVALID_DATA_POINT_FILTER_DATA_TYPE_MEMBER）。
   //    フィルタなしで取得し、コード側で日付を絞る。
   'sleep':                        NO_FILTER,
+  // exercise も sleep と同じでフィルタを一切受け付けない。
+  // 'exercise.interval.start_time' は INVALID_DATA_POINT_FILTER_DATA_TYPE_MEMBER。
+  // 新しい順に返るので、早期打ち切り + クライアント側で日付を絞る。
+  'exercise':                     NO_FILTER,
   'heart-rate':                   'heartRate.sample_time.physical_time >= "{from}T00:00:00Z" AND heartRate.sample_time.physical_time < "{toExclusive}T00:00:00Z"',
   'daily-resting-heart-rate':     'daily_resting_heart_rate.date >= "{from}" AND daily_resting_heart_rate.date < "{toExclusive}"',
   'daily-heart-rate-variability': 'daily_heart_rate_variability.date >= "{from}" AND daily_heart_rate_variability.date < "{toExclusive}"'
