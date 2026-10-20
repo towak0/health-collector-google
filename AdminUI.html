@@ -86,6 +86,15 @@
   </div>
 
   <div class="card">
+    <h2>状態の診断</h2>
+    <p class="sub" style="margin:-8px 0 12px">
+      直近3日のデータと端末の同期状況から、欠測の理由を切り分けます。
+      追加の通信はしません。</p>
+    <button class="sec" id="btnDiag">読み込む</button>
+    <div class="scroll" id="diagOut" style="margin-top:12px"></div>
+  </div>
+
+  <div class="card">
     <h2>状況</h2>
     <div class="stats" id="stats"></div>
     <p class="links" style="margin:14px 0 0" id="links"></p>
@@ -174,15 +183,6 @@
       翌朝の定期実行でも自動で拾うので、急ぎでなければ押さなくて構いません。<br>
       <b>配布用 CSV</b>…被験者ID と個別URL の一覧をドライブの exports フォルダに出します。
     </p>
-  </div>
-
-  <div class="card">
-    <h2>状態の診断</h2>
-    <p class="sub" style="margin:-8px 0 12px">
-      直近3日のデータと端末の同期状況から、欠測の理由を切り分けます。
-      追加の通信はしません。</p>
-    <button class="sec" id="btnDiag">読み込む</button>
-    <div class="scroll" id="diagOut" style="margin-top:12px"></div>
   </div>
 
   <div class="card">
@@ -382,6 +382,7 @@ $('btnDiag').onclick = function () {
     })
     .adminDiagnose();
 };
+$('btnDiag').click();
 
 // 最近のデータ
 $('btnData').onclick = function () {
