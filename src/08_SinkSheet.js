@@ -72,6 +72,11 @@ var Sink = {
     var rawByKey = {};   // "hid|date|dataType" → intraday レコード配列
     var touched  = {};   // hid → データが1点でもあったか
 
+    // 取りに行った日は、データが無くても1行作る。
+    // 行が無いと「取りに行っていない日」と「取りに行ったが何も無かった日」の
+    // 区別が付かず、記録が途中で止まったように見える。
+    seedDailyRows_(daily, parsed, jobId);
+
     parsed.forEach(function (item) {
       var meta = item.meta, dt = meta.dt, hid = meta.humanome_id;
       var points = extractPoints_(item.body);
@@ -108,6 +113,43 @@ var Sink = {
     IngestLog.flush();
   }
 };
+
+/**
+ * 取得を試みた期間について、被験者ごと・日ごとの空行を先に作る。
+ *
+ * 値は入れない。0 を入れてはいけない。
+ *   0    … 測って0だった（歩数0など）
+ *   空欄 … データが無かった
+ * ここを混ぜると、後から「動かなかった日」と「取れなかった日」を区別できなくなる。
+ *
+ * 認可日より前は作らない。まだアクセス権が無かった期間なので、
+ * 「取りに行ったが無かった」ではない。
+ */
+function seedDailyRows_(daily, parsed, jobId) {
+  var authFrom = {};
+  try {
+    Subjects.all().forEach(function (s) {
+      authFrom[s.humanome_id] = String(s.authorized_at || '').substring(0, 10);
+    });
+  } catch (e) {}
+
+  parsed.forEach(function (item) {
+    var meta = item.meta, dt = meta.dt;
+    var isDaily = dt.method === 'dailyRollUp' || dt.id === 'sleep' || DAILY_LIST_MAP[dt.id];
+    if (!isDaily) return;
+
+    var from = String(meta.from || '').substring(0, 10);
+    var to   = String(meta.to   || '').substring(0, 10);
+    if (!from || !to || from > to) return;
+
+    var auth = authFrom[meta.humanome_id] || '';
+    var d = from;
+    for (var guard = 0; d <= to && guard < 400; guard++) {
+      if (!auth || d >= auth) dailyRow_(daily, meta.humanome_id, d, jobId);
+      d = addDays_(d, 1);
+    }
+  });
+}
 
 function dailyRow_(map, hid, date, jobId) {
   var k = hid + '|' + date;
