@@ -761,11 +761,12 @@ function migrateRawDropYear() {
 }
 
 /**
- * API が公開しているデータ型の一覧を出す。
- * アクティビティ（運動セッション）など、まだ取っていない型があるかを確認するため。
- * エディタから実行して、実行ログを見る。
+ * exercise（運動セッション）の生レスポンスを見る。
+ * 無フィルタと、開始時刻フィルタの両方を試す。
+ * この API には型の一覧エンドポイントが無い（/users/me/dataTypes は 404）ので、
+ * 型ごとに叩いて確かめる。
  */
-function probeDataTypes() {
+function probeExercise() {
   var cfg = Config.forConfigName('Experiment_A');
   var hid = 'test_Experiment_A_001';
   var at  = TokenStore.getAccess(cfg.config_name, hid);
@@ -774,13 +775,21 @@ function probeDataTypes() {
     at = TokenStore.getAccess(cfg.config_name, hid);
   }
 
-  // 一覧エンドポイントの候補を順に叩く。404 は「そのパスが無い」、
-  // 200 や 400 は「ある」。
-  ['/users/me/dataTypes', '/dataTypes', '/users/me/sessions', '/users/me/dataSources']
-    .forEach(function (path) {
-      var res = UrlFetchApp.fetch(HEALTH_API + path + '?pageSize=200', {
-        headers: { Authorization: 'Bearer ' + at }, muteHttpExceptions: true });
-      console.log('\n===== ' + path + ' [' + res.getResponseCode() + '] =====');
-      console.log(res.getContentText().substring(0, 4000));
-    });
+  var base = HEALTH_API + '/users/me/dataTypes/exercise/dataPoints';
+  var from = isoDate_(daysAgo_(60));
+  var to   = isoDate_(new Date());
+
+  var tries = [
+    { label: 'フィルタ無し', q: { pageSize: 3 } },
+    { label: '開始時刻フィルタ', q: { pageSize: 3,
+        filter: 'exercise.interval.start_time >= "' + from + 'T00:00:00Z" AND ' +
+                'exercise.interval.start_time < "' + to + 'T00:00:00Z"' } }
+  ];
+
+  tries.forEach(function (t) {
+    var res = UrlFetchApp.fetch(base + '?' + qs_(t.q),
+      { headers: { Authorization: 'Bearer ' + at }, muteHttpExceptions: true });
+    console.log('\n===== ' + t.label + ' [' + res.getResponseCode() + '] =====');
+    console.log(res.getContentText().substring(0, 3000));
+  });
 }
