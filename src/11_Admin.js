@@ -759,3 +759,28 @@ function migrateRawDropYear() {
   console.log(msg);
   return msg;
 }
+
+/**
+ * API が公開しているデータ型の一覧を出す。
+ * アクティビティ（運動セッション）など、まだ取っていない型があるかを確認するため。
+ * エディタから実行して、実行ログを見る。
+ */
+function probeDataTypes() {
+  var cfg = Config.forConfigName('Experiment_A');
+  var hid = 'test_Experiment_A_001';
+  var at  = TokenStore.getAccess(cfg.config_name, hid);
+  if (!at) {
+    refreshBatch_(cfg, [{ humanome_id: hid }], {});
+    at = TokenStore.getAccess(cfg.config_name, hid);
+  }
+
+  // 一覧エンドポイントの候補を順に叩く。404 は「そのパスが無い」、
+  // 200 や 400 は「ある」。
+  ['/users/me/dataTypes', '/dataTypes', '/users/me/sessions', '/users/me/dataSources']
+    .forEach(function (path) {
+      var res = UrlFetchApp.fetch(HEALTH_API + path + '?pageSize=200', {
+        headers: { Authorization: 'Bearer ' + at }, muteHttpExceptions: true });
+      console.log('\n===== ' + path + ' [' + res.getResponseCode() + '] =====');
+      console.log(res.getContentText().substring(0, 4000));
+    });
+}
